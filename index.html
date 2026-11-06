@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<meta charset="utf-8">
+<title>ErgoSense Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Inter:wght@400;500&display=swap">
+<style>
+/* Layout: fixed role sidebar + flat working canvas; hairlines do the structure, blue marks action, semantic colours mark risk */
+:root{
+  --bg:#ffffff; --surface:#ffffff; --tint:#EEF5FF; --tint-2:#D9E9FF;
+  --fg:#141A1D; --body:#37464F; --muted:#6B767D; --rule:#DCDFE0;
+  --accent:#2979FF; --accent-hover:#1A6EFF; --btn:#222C31; --btn-hover:#141A1D; --on-btn:#ffffff;
+  --high:#D93A2B; --high-bg:#FDECEA; --med:#B26A00; --med-bg:#FFF4CC; --low:#2E7D32; --low-bg:#E8F5E9;
+  --figure:#37464F; --scrim:rgba(20,26,29,.45);
+  --display:"Poppins",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --text:"Poppins",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ui:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ease:180ms cubic-bezier(.4,0,.2,1);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1518; --surface:#141C20; --tint:#162334; --tint-2:#1C2E47;
+  --fg:#EEF2F4; --body:#C3CCD1; --muted:#8C979D; --rule:#2A353B;
+  --accent:#5C9BFF; --accent-hover:#7DB0FF; --btn:#EEF2F4; --btn-hover:#ffffff; --on-btn:#141A1D;
+  --high:#FF7A6B; --high-bg:#3A1C19; --med:#F2B54A; --med-bg:#3A2E12; --low:#6FCF76; --low-bg:#173020;
+  --figure:#C3CCD1; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1518; --surface:#141C20; --tint:#162334; --tint-2:#1C2E47;
+  --fg:#EEF2F4; --body:#C3CCD1; --muted:#8C979D; --rule:#2A353B;
+  --accent:#5C9BFF; --accent-hover:#7DB0FF; --btn:#EEF2F4; --btn-hover:#ffffff; --on-btn:#141A1D;
+  --high:#FF7A6B; --high-bg:#3A1C19; --med:#F2B54A; --med-bg:#3A2E12; --low:#6FCF76; --low-bg:#173020;
+  --figure:#C3CCD1; --scrim:rgba(0,0,0,.6); color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--body);font:400 14px/1.857 var(--text)}
+h1,h2,h3,h4{color:var(--fg);font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+h1{font-size:32px;line-height:1.25;letter-spacing:-.02em}
+h2{font-size:20px;line-height:1.4;letter-spacing:-.01em}
+h3{font-size:16px;line-height:1.5}
+p{margin:0}
+a{color:var(--accent);text-decoration:none}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.label{font:500 12px/1.5 var(--ui);color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+
+/* shell */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
+.side{border-right:1px solid var(--rule);padding:24px 16px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100vh;overflow:auto;background:var(--surface)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px}
+.brand-mark{width:28px;height:28px;background:var(--accent);display:grid;place-items:center}
+.brand-name{font:500 18px/1 var(--display);color:var(--fg);letter-spacing:-.01em}
+.brand-sub{font:400 11px/1.4 var(--ui);color:var(--muted);padding:0 8px;margin-top:-16px}
+.roles{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule)}
+.roles button{background:none;border:0;padding:8px 4px;font:500 12px/1.4 var(--ui);cursor:pointer;color:var(--body);transition:background var(--ease)}
+.roles button+button{border-left:1px solid var(--rule)}
+.roles button[aria-pressed="true"]{background:var(--btn);color:var(--on-btn)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;padding:9px 10px;color:var(--body);font-weight:500;border-left:2px solid transparent;transition:background var(--ease),color var(--ease)}
+.nav a:hover{background:var(--tint)}
+.nav a[aria-current="page"]{color:var(--accent);background:var(--tint);border-left-color:var(--accent)}
+.nav svg{flex:none}
+.side-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--rule);display:flex;gap:10px;align-items:center}
+.avatar{width:32px;height:32px;background:var(--tint-2);color:var(--accent);display:grid;place-items:center;font:500 12px/1 var(--ui);flex:none}
+.who b{display:block;color:var(--fg);font-weight:500;line-height:1.3}
+.who span{font:400 12px/1.4 var(--ui);color:var(--muted)}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--rule);padding-block:14px;padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px))}
+.crumb{font:500 13px/1.4 var(--ui);color:var(--muted)}
+.demo-chip{font:500 12px/1 var(--ui);background:var(--med-bg);color:var(--med);padding:6px 10px}
+.view{padding-block:32px 64px;padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:28px;max-width:1240px;width:100%}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.head p{max-width:62ch;margin-top:6px}
+
+/* building blocks */
+.card{border:1px solid var(--rule);background:var(--surface);padding:24px;min-width:0}
+.card.tint{background:var(--tint);border-color:var(--tint-2)}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g-main{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.stack{display:flex;flex-direction:column;gap:12px}
+.between{justify-content:space-between}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--btn);color:var(--on-btn);border:1px solid var(--btn);padding:11px 20px;font:500 14px/1.4 var(--text);cursor:pointer;transition:background var(--ease),border-color var(--ease)}
+.btn:hover{background:var(--btn-hover);border-color:var(--btn-hover)}
+.btn.blue{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.blue:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--fg)}
+.btn.ghost:hover{background:var(--tint)}
+.btn.sm{padding:6px 12px;font-size:13px}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.link{display:inline-flex;align-items:center;gap:6px;font-weight:500;color:var(--accent);background:none;border:0;padding:0;cursor:pointer}
+.link:hover{color:var(--accent-hover)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--ui);padding:5px 9px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;background:currentColor}
+.High{color:var(--high);background:var(--high-bg)}
+.Medium{color:var(--med);background:var(--med-bg)}
+.Low{color:var(--low);background:var(--low-bg)}
+.Info{color:var(--accent);background:var(--tint)}
+.kpi .v{font:300 40px/1.1 var(--display);color:var(--fg);letter-spacing:-.03em}
+.kpi .v small{font-size:16px;color:var(--muted);letter-spacing:0;margin-left:4px}
+.kpi .d{font:400 12px/1.5 var(--ui);color:var(--muted);margin-top:6px}
+.bar{height:6px;background:var(--tint-2);position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent)}
+.bar.target b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--fg)}
+table{width:100%;border-collapse:collapse}
+th{font:500 12px/1.4 var(--ui);color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid var(--rule);vertical-align:middle}
+tbody tr:hover{background:var(--tint)}
+.tbl{overflow-x:auto;border:1px solid var(--rule)}
+.tbl table td:first-child,.tbl table th:first-child{padding-left:20px}
+select,input[type="text"],input[type="time"]{background:var(--surface);border:1px solid var(--rule);padding:8px 10px;border-radius:0}
+select:focus,input:focus{outline:none;border-color:var(--accent)}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>span{font:500 12px/1.4 var(--ui);color:var(--muted)}
+.divider{height:1px;background:var(--rule)}
+.svgc{width:100%;height:auto;display:block;max-width:100%}
+
+/* self-assessment */
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--rule)}
+.steps button{background:var(--surface);border:0;padding:14px 16px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.steps button+button{border-left:1px solid var(--rule)}
+.steps button[aria-current="step"]{background:var(--tint);box-shadow:inset 0 -2px 0 var(--accent)}
+.steps .n{font:500 12px/1.4 var(--ui);color:var(--muted)}
+.steps .t{font-weight:500;color:var(--fg)}
+.steps .done .n{color:var(--low)}
+.q{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:16px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.q:last-child{border-bottom:0}
+.q p{color:var(--fg);flex:1 1 280px}
+.seg{display:inline-grid;grid-template-columns:repeat(3,auto);border:1px solid var(--rule)}
+.seg button{background:none;border:0;padding:6px 14px;cursor:pointer;font:500 13px/1.4 var(--ui);color:var(--body)}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--btn);color:var(--on-btn)}
+
+/* capture */
+.drop{border:1px dashed var(--accent);background:var(--tint);aspect-ratio:4/3;max-width:100%;display:grid;place-items:center;position:relative;overflow:hidden}
+.drop img{width:100%;height:100%;object-fit:cover}
+.frame-guide{position:absolute;inset:8%;border:1px dashed var(--accent);pointer-events:none}
+.frame-guide span{position:absolute;top:8px;left:8px;background:var(--accent);color:#fff;font:500 11px/1 var(--ui);padding:5px 8px}
+.progress{height:4px;background:var(--tint-2);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width 300ms linear}
+.check{display:flex;gap:10px;align-items:flex-start}
+.check input{margin-top:6px;accent-color:var(--accent)}
+
+/* findings */
+.finding{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;padding:16px 0;border-bottom:1px solid var(--rule);align-items:start}
+.finding:last-child{border-bottom:0}
+.sev{width:4px;align-self:stretch}
+.sev.High{background:var(--high)}.sev.Medium{background:var(--med)}.sev.Low{background:var(--low)}
+.finding h3{font-size:15px}
+.measure{font:500 12px/1.4 var(--ui);color:var(--muted)}
+.score-ring{display:flex;align-items:center;gap:20px}
+.rec{display:flex;gap:12px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--rule)}
+.rec:last-child{border-bottom:0}
+.rec input{margin-top:6px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+.rec.done p:first-of-type{text-decoration:line-through;color:var(--muted)}
+
+/* reminders */
+.profiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--rule)}
+.profiles button{background:var(--surface);border:0;padding:18px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.profiles button+button{border-left:1px solid var(--rule)}
+.profiles button[aria-pressed="true"]{background:var(--tint);box-shadow:inset 0 -2px 0 var(--accent)}
+.profiles b{font-weight:500;color:var(--fg)}
+.slider{display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:12px;align-items:center}
+input[type="range"]{width:100%;accent-color:var(--accent)}
+.ex{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
+.ex .card{border-top:0;border-left:0;transition:background var(--ease)}
+.ex .card:hover{background:var(--tint)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chips button{border:1px solid var(--rule);background:var(--surface);padding:6px 12px;cursor:pointer;font:500 12px/1.4 var(--ui)}
+.chips button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--tint)}
+
+/* reminder popup + toast */
+.notify{position:fixed;right:calc(24px + env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));width:min(360px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--rule);box-shadow:0 12px 32px rgba(20,26,29,.18);z-index:30}
+.notify header{display:flex;justify-content:space-between;align-items:center;background:var(--accent);color:#fff;padding:8px 14px;font:500 12px/1.4 var(--ui)}
+.notify header button{background:none;border:0;color:#fff;cursor:pointer;font-size:18px;line-height:1}
+.notify .body{padding:18px;display:flex;flex-direction:column;gap:12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));background:var(--btn);color:var(--on-btn);padding:12px 18px;font:500 13px/1.4 var(--ui);z-index:40;max-width:calc(100vw - 32px)}
+
+/* charts */
+.hbar{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 44px;gap:12px;align-items:center;padding:7px 0}
+.hbar .track{height:10px;background:var(--tint)}
+.hbar .track i{display:block;height:100%;background:var(--accent)}
+.hbar .val{text-align:right;font:500 12px/1 var(--ui);color:var(--fg)}
+.hbar .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font:400 12px/1.4 var(--ui);color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px}
+.matrix td,.matrix th{text-align:center}
+.matrix td:first-child,.matrix th:first-child{text-align:left}
+.yes{color:var(--low);font-weight:500}.no{color:var(--muted)}
+.notice{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;background:var(--tint);border:1px solid var(--tint-2);color:var(--fg)}
+
+.app.signin{grid-template-columns:minmax(0,1fr)}
+.app.signin .side{display:none}
+.signin-card{max-width:440px;width:100%;margin:6vh auto 0;display:flex;flex-direction:column;gap:18px}
+.side-foot .link{margin-left:auto;font-size:12px}
+@media (max-width:1080px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g-main,.g3{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--rule);padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:14px}
+  .brand-sub,.side-foot{display:none}
+  .nav{flex-direction:row;overflow-x:auto;gap:4px}
+  .nav a{white-space:nowrap;border-left:0;border-bottom:2px solid transparent}
+  .nav a[aria-current="page"]{border-bottom-color:var(--accent)}
+  .topbar,.view{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .g2,.g4{grid-template-columns:minmax(0,1fr)}
+  .steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .steps button:nth-child(3){border-left:0}
+  .steps button:nth-child(n+3){border-top:1px solid var(--rule)}
+  .profiles,.ex{grid-template-columns:minmax(0,1fr)}
+  .profiles button+button{border-left:0;border-top:1px solid var(--rule)}
+  .hbar{grid-template-columns:minmax(0,110px) minmax(0,1fr) 40px}
+  h1{font-size:26px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.6"><circle cx="9" cy="3.5" r="2"/><path d="M9 6v6l-3 4M9 12l3 4M5 8.5h8"/></svg></div>
+      <span class="brand-name">ErgoSense</span>
+    </div>
+    <p class="brand-sub">Office Ergonomics &amp; Well-Being · OH – HSE</p>
+    <div>
+      <div class="label" style="margin:0 0 6px 2px">View as</div>
+      <div class="roles" role="group" aria-label="Role">
+        <button type="button" id="role-employee" data-role="employee">Employee</button>
+        <button type="button" id="role-hse" data-role="hse">HSE / OH</button>
+        <button type="button" id="role-admin" data-role="admin">Admin</button>
+      </div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <div class="side-foot"><div class="avatar" id="who-av">SH</div><div class="who"><b id="who-name">Sara Haddad</b><span id="who-role">Research Office</span></div><a class="link" href="#signin">Sign out</a></div>
+  </aside>
+  <div class="main">
+    <div class="topbar"><span class="crumb" id="crumb">Home</span><span class="demo-chip">Prototype · sample data</span></div>
+    <main class="view" id="view"></main>
+  </div>
+</div>
+<div id="notify-root"></div>
+<div id="toast-root"></div>
+
+<script>
+/* ---------- icons (1.5px stroke, 20px grid) ---------- */
+const P = {
+  home:'M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z',
+  check:'M6 3h8a1 1 0 0 1 1 1v13H5V4a1 1 0 0 1 1-1zM8 3v2h4V3M7.5 10l1.8 1.8L13 8',
+  camera:'M3 7h3l1.5-2h5L14 7h3v9H3zM10 14a2.6 2.6 0 1 0 0-5.2A2.6 2.6 0 0 0 10 14z',
+  report:'M5 3h7l3 3v11H5zM12 3v3h3M8 10h5M8 13h5',
+  bell:'M5 14V9a5 5 0 0 1 10 0v5l1.5 2h-13zM8.5 17.5a1.8 1.8 0 0 0 3 0',
+  grid:'M3 3h6v6H3zM11 3h6v4h-6zM11 9h6v8h-6zM3 11h6v6H3z',
+  alert:'M10 3 18 17H2zM10 8v4M10 14.5v.5',
+  flag:'M5 17V3M5 4h10l-2 3.5L15 11H5',
+  users:'M7.5 9a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6zM2.5 16.5c.6-3 2.6-4.5 5-4.5s4.4 1.5 5 4.5M13 4a2.6 2.6 0 0 1 0 5M15 12c1.4.6 2.2 2 2.5 4.5',
+  shield:'M10 2.5 16 5v5c0 3.8-2.6 6.4-6 7.5-3.4-1.1-6-3.7-6-7.5V5z',
+  list:'M7 5h10M7 10h10M7 15h10M3 5h1M3 10h1M3 15h1',
+  arrow:'M6 14 14 6M7.5 6H14v6.5',
+  upload:'M10 13V4M6.5 7.5 10 4l3.5 3.5M4 13v3h12v-3',
+  play:'M7 5v10l8-5z',
+  info:'M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM10 9v4.5M10 6.5v.5'
+};
+const ic = (n,s=20) => `<svg width="${s}" height="${s}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- sample data ---------- */
+const USERS = {
+  employee:{name:'Sara Haddad',init:'SH',sub:'Research Office · Science Park'},
+  hse:{name:'Dr. Omar Nasser',init:'ON',sub:'Occupational Health – HSE'},
+  admin:{name:'Lina Karam',init:'LK',sub:'System administrator'}
+};
+const AREAS = [
+  {area:'Sitting posture',sev:'High',title:'Forward head and rounded upper back',measure:'Neck flexion 31° · trunk lean 14°',detail:'Your head sits about 6 cm forward of your shoulders. Sustained neck flexion above 20° raises neck and shoulder strain.'},
+  {area:'Monitor height and distance',sev:'High',title:'Screen too low and slightly too close',measure:'Top of screen 14 cm below eye level · distance 48 cm',detail:'The top line of text should sit at or just below eye level, at roughly an arm\'s length (50–70 cm).'},
+  {area:'Keyboard and mouse',sev:'Medium',title:'Wrists bent upwards, mouse reached sideways',measure:'Wrist extension 22° · mouse 18 cm outside shoulder line',detail:'Wrists work best straight. Reaching for the mouse loads the shoulder over a full day.'},
+  {area:'Chair and desk',sev:'Low',title:'Seat height fits, lumbar support unused',measure:'Knee angle 92° · gap behind lower back 7 cm',detail:'Seat height and desk height are a good match. Slide back so the backrest supports your lower back.'}
+];
+const RECS = [
+  {id:'r1',area:'Monitor height and distance',text:'Raise the monitor 14 cm, using the stand or a riser, so the top line of text is at eye level.',how:'Takes 5 minutes · request a riser from Facilities if the stand is fixed'},
+  {id:'r2',area:'Sitting posture',text:'Sit back in the chair so your lower back touches the backrest, and bring your head back over your shoulders.',how:'Posture reminder every 30 minutes helps this become a habit'},
+  {id:'r3',area:'Monitor height and distance',text:'Push the screen back to about an arm\'s length (55–65 cm).',how:'Check with your fingertips touching the screen'},
+  {id:'r4',area:'Keyboard and mouse',text:'Lower the keyboard feet and keep the mouse beside the keyboard, inside shoulder width.',how:'Consider a compact keyboard without the number pad'},
+  {id:'r5',area:'Chair and desk',text:'Adjust lumbar support to sit in the curve of your lower back.',how:'Visual guide in the self-assessment, step 2'}
+];
+const HISTORY = [{d:'Nov 4, 2026',type:'AI + self-assessment',score:58,cls:'High'},{d:'Aug 6, 2026',type:'Self-assessment',score:52,cls:'High'},{d:'May 12, 2026',type:'Manual (OH visit)',score:49,cls:'High'}];
+const STEPS = [
+  {key:'desk',t:'Desk setup',hint:'Elbow height and clear leg room',qs:['Is your desk surface at or just below elbow height when your shoulders are relaxed?','Do you have enough leg room without objects under the desk?','Are frequently used items within forearm reach?']},
+  {key:'chair',t:'Chair adjustments',hint:'Seat, backrest and lumbar support',qs:['Are your feet flat on the floor (or on a footrest) with knees about level with hips?','Does the backrest support the curve of your lower back?','Is there a two-to-three-finger gap between the seat edge and the back of your knees?']},
+  {key:'monitor',t:'Monitor positioning',hint:'Height, distance and glare',qs:['Is the top line of text at or just below eye level?','Is the screen about an arm\'s length away?','Is the screen free of glare from windows or lights?']},
+  {key:'input',t:'Keyboard and mouse',hint:'Wrist position and reach',qs:['Are your wrists straight while typing?','Is the mouse right next to the keyboard?','Do you use keyboard shortcuts to reduce mouse use?']}
+];
+const FIXES = {
+  '0-0':'Adjust the chair or desk so the desk surface is at elbow height. Use a footrest if your feet no longer reach the floor.',
+  '0-1':'Clear storage boxes and cables from under the desk so your legs can move freely.',
+  '0-2':'Move your phone, notepad and mouse within forearm reach to avoid repeated stretching.',
+  '1-0':'Lower the seat until your feet are flat, or request a footrest from Facilities.',
+  '1-1':'Raise the lumbar support into the curve of your lower back and sit fully back in the chair.',
+  '1-2':'Slide the seat pan back so two to three fingers fit behind your knees.',
+  '2-0':'Raise the monitor so the top line of text is at eye level.',
+  '2-1':'Move the screen back to about an arm\'s length (50–70 cm).',
+  '2-2':'Turn the screen side-on to the window or lower the blinds.',
+  '3-0':'Lower the keyboard feet so your wrists stay straight while typing.',
+  '3-1':'Place the mouse right beside the keyboard, inside shoulder width.',
+  '3-2':'Learn five shortcuts to cut mouse use: copy, paste, undo, find and switch window.'
+};
+const DEPTS = [
+  {name:'Research Office',entity:'Science Park',emp:96,assessed:88,high:17,trend:[60,63,66,69,71]},
+  {name:'Education Programs',entity:'Education Campus',emp:124,assessed:104,high:21,trend:[57,60,64,67,69]},
+  {name:'Finance',entity:'Headquarters',emp:72,assessed:66,high:8,trend:[65,68,70,72,74]},
+  {name:'Information Technology',entity:'Headquarters',emp:84,assessed:78,high:6,trend:[69,72,74,77,78]},
+  {name:'Community Development',entity:'Education Campus',emp:58,assessed:42,high:7,trend:[54,57,59,62,64]},
+  {name:'Human Resources',entity:'Headquarters',emp:46,assessed:34,high:4,trend:[62,64,66,68,70]}
+];
+const MONTHS = ['Jul','Aug','Sep','Oct','Nov'];
+const ISSUES = [['Monitor too low',168],['Forward head posture',141],['No lumbar support used',118],['Wrist extension',96],['Mouse out of reach',74],['Screen glare',52],['Feet unsupported',41]];
+const BODY = [['Neck',38,'High'],['Lower back',29,'High'],['Shoulders',17,'Medium'],['Wrists',11,'Medium'],['Knees',5,'Low']];
+let CASES = [
+  {id:'e1043',name:'Sara Haddad',dept:'Research Office',score:58,cls:'High',issue:'Monitor too low',date:'Nov 4',status:'New'},
+  {id:'e1188',name:'Yousef Darwish',dept:'Education Programs',score:46,cls:'High',issue:'Forward head posture',date:'Nov 3',status:'New'},
+  {id:'e0917',name:'Mariam Saleh',dept:'Education Programs',score:51,cls:'High',issue:'No lumbar support used',date:'Nov 2',status:'Contacted'},
+  {id:'e1302',name:'Khalid Rahman',dept:'Community Development',score:49,cls:'High',issue:'Wrist extension',date:'Oct 30',status:'Contacted'},
+  {id:'e0764',name:'Noor Abbas',dept:'Research Office',score:55,cls:'High',issue:'Monitor too low',date:'Oct 29',status:'New'},
+  {id:'e1210',name:'Hana Youssef',dept:'Finance',score:61,cls:'Medium',issue:'Mouse out of reach',date:'Oct 28',status:'Resolved'},
+  {id:'e0688',name:'Tariq Mansour',dept:'Information Technology',score:63,cls:'Medium',issue:'Screen glare',date:'Oct 27',status:'Resolved'},
+  {id:'e1355',name:'Rana Khoury',dept:'Human Resources',score:57,cls:'High',issue:'Forward head posture',date:'Oct 25',status:'Contacted'}
+];
+const EXERCISES = [
+  {n:'Chin tucks',area:'Neck',dur:'30 s',steps:'Sit tall, draw your chin straight back, hold 3 s, repeat 8 times.'},
+  {n:'Shoulder rolls',area:'Shoulders',dur:'30 s',steps:'Roll shoulders up, back and down slowly, 10 times.'},
+  {n:'Seated thoracic extension',area:'Upper back',dur:'45 s',steps:'Hands behind head, gently arch over the backrest, hold 5 s, 5 times.'},
+  {n:'Wrist flexor stretch',area:'Wrists',dur:'40 s',steps:'Arm straight, palm up, gently pull fingers back, 15 s each side.'},
+  {n:'Standing hip opener',area:'Lower back',dur:'60 s',steps:'Stand, step one foot back, tuck the pelvis, hold 20 s each side.'},
+  {n:'20-20-20 eye break',area:'Eyes',dur:'20 s',steps:'Every 20 minutes look at something 6 m away for 20 seconds.'}
+];
+const ADMIN_USERS = [
+  ['Sara Haddad','sara.haddad','Research Office','Science Park','Employee','Pilot A'],
+  ['Dr. Omar Nasser','omar.nasser','OH – HSE','Headquarters','HSE / OH','—'],
+  ['Aisha Fares','aisha.fares','OH – HSE','Headquarters','HSE / OH','—'],
+  ['Lina Karam','lina.karam','Information Technology','Headquarters','Admin','—'],
+  ['Yousef Darwish','yousef.darwish','Education Programs','Education Campus','Employee','Pilot A'],
+  ['Mariam Saleh','mariam.saleh','Education Programs','Education Campus','Employee','Pilot B'],
+  ['Hana Youssef','hana.youssef','Finance','Headquarters','Employee','Pilot B']
+];
+const AUDIT = [
+  ['Nov 6, 09:42','Dr. Omar Nasser','Viewed individual report','e1188 · Yousef Darwish'],
+  ['Nov 6, 09:15','Aisha Fares','Exported dashboard','Excel · All departments · Q4'],
+  ['Nov 5, 16:03','Lina Karam','Imported users','HR file · 38 rows · 2 updated departments'],
+  ['Nov 5, 11:27','Lina Karam','Changed role','aisha.fares → HSE / OH'],
+  ['Nov 4, 14:50','System','Discarded raw image after analysis','e1043 · keypoints retained']
+];
+
+/* ---------- state ---------- */
+const S = {
+  role:'employee', step:0, answers:{}, consent:false, photo:null, analyzed:true, analyzing:false,
+  recsDone:new Set(['r3']), profile:'Balanced',
+  freq:{break:30,stretch:60,posture:45}, hours:['08:00','16:00'], types:{break:true,stretch:true,posture:true},
+  exFilter:'All', dept:'All', entity:'All', period:'Pilot to date', caseId:'e1043', imported:null,
+  checkSummary:false, checkError:null, fixesDone:new Set(), remError:null,
+  cRisk:'All', cDept:'All', cStatus:'All'
+};
+STEPS.forEach((s,i)=>s.qs.forEach((_,j)=>{S.answers[`${i}-${j}`] = ({'0-0':'Yes','0-1':'Yes','0-2':'Yes','1-0':'Yes','1-1':'No','1-2':'Yes','2-0':'No','2-1':'No'})[`${i}-${j}`] || null;}));
+
+/* ---------- routes ---------- */
+const ROUTES = {
+  home:{role:'employee',label:'Home',icon:'home'},
+  check:{role:'employee',label:'Self-assessment',icon:'check'},
+  capture:{role:'employee',label:'AI posture check',icon:'camera'},
+  results:{role:'employee',label:'AI posture check / Results',icon:'camera',hidden:true,parent:'capture'},
+  report:{role:'employee',label:'My report',icon:'report'},
+  reminders:{role:'employee',label:'Reminders',icon:'bell'},
+  hse:{role:'hse',label:'Dashboard',icon:'grid'},
+  cases:{role:'hse',label:'High-risk follow-up',icon:'alert'},
+  pilot:{role:'hse',label:'Pilot evaluation',icon:'flag'},
+  users:{role:'admin',label:'Users & departments',icon:'users'},
+  access:{role:'admin',label:'Roles & policies',icon:'shield'},
+  audit:{role:'admin',label:'Audit log',icon:'list'},
+  signin:{role:'any',label:'Sign in',icon:'shield',hidden:true}
+};
+const FIRST = {employee:'home',hse:'hse',admin:'users'};
+
+function go(r){ if(location.hash.slice(1)===r) render(); else location.hash = r; }
+function current(){
+  const h = location.hash.slice(1);
+  if(h.startsWith('case-')) return 'case';
+  return ROUTES[h] ? h : FIRST[S.role];
+}
+function render(){
+  const r = current();
+  const role = r==='case' ? 'hse' : r==='signin' ? S.role : ROUTES[r].role;
+  S.role = role;
+  document.querySelector('.app').classList.toggle('signin', r==='signin');
+  if(r==='case') S.caseId = location.hash.slice(6);
+  document.querySelectorAll('.roles button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.role===role));
+  const u = USERS[role];
+  document.getElementById('who-av').textContent = u.init;
+  document.getElementById('who-name').textContent = u.name;
+  document.getElementById('who-role').textContent = u.sub;
+  const active = r==='case' ? 'cases' : (ROUTES[r].parent || r);
+  document.getElementById('nav').innerHTML = Object.entries(ROUTES).filter(([,v])=>v.role===role && !v.hidden)
+    .map(([k,v])=>`<a href="#${k}" ${k===active?'aria-current="page"':''}>${ic(v.icon)}<span>${v.label}</span></a>`).join('');
+  document.getElementById('crumb').textContent = r==='case' ? 'High-risk follow-up / Individual report' : ROUTES[r].label;
+  const view = document.getElementById('view');
+  view.innerHTML = VIEWS[r]();
+  (BIND[r]||(()=>{}))(view);
+  window.scrollTo(0,0);
+}
+window.addEventListener('hashchange',render);
+document.querySelectorAll('.roles button').forEach(b=>b.addEventListener('click',()=>go(FIRST[b.dataset.role])));
+
+/* ---------- helpers ---------- */
+function toast(msg){
+  const t = document.getElementById('toast-root');
+  t.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.innerHTML='',3200);
+}
+const pill = c => `<span class="pill ${c}">${c} risk</span>`;
+const ergoScore = () => S.analyzed ? 58 : null;
+function answered(){ return Object.values(S.answers).filter(Boolean).length; }
+function stepDone(i){ return STEPS[i].qs.every((_,j)=>S.answers[`${i}-${j}`]); }
+
+/* workstation figure: mode 'ideal' highlights a part, mode 'scan' shows detected keypoints */
+function figure(mode, part){
+  const scan = mode==='scan';
+  const head = scan?[124,66]:[104,60], neck = scan?[110,84]:[100,80], sh = scan?[104,92]:[98,90];
+  const hip=[100,146], knee=[160,148], ankle=[163,212], elbow= scan?[118,128]:[104,126], wrist= scan?[178,114]:[170,120];
+  const monTop = scan?90:62, monBot = monTop+44, monX = scan?236:256;
+  const hl = k => part===k ? 'var(--accent)' : 'var(--figure)';
+  const sw = k => part===k ? 3 : 2;
+  const eyeY = head[1]-2;
+  let s = `<svg class="svgc" viewBox="0 0 320 240" role="img" aria-label="${scan?'Detected posture with joint angles':'Recommended workstation setup'}">
+  <line x1="0" y1="218" x2="320" y2="218" stroke="var(--rule)" stroke-width="1"/>
+  <g stroke="${hl('desk')}" stroke-width="${sw('desk')}" fill="none"><line x1="165" y1="124" x2="310" y2="124"/><line x1="295" y1="124" x2="295" y2="218"/><line x1="175" y1="124" x2="175" y2="218"/></g>
+  <g stroke="${hl('monitor')}" stroke-width="${sw('monitor')}" fill="none"><rect x="${monX}" y="${monTop}" width="7" height="44" fill="var(--surface)"/><line x1="${monX+4}" y1="${monBot}" x2="${monX+4}" y2="124"/><line x1="${monX-8}" y1="124" x2="${monX+16}" y2="124"/></g>
+  <g stroke="${hl('input')}" stroke-width="${sw('input')}"><line x1="168" y1="121" x2="200" y2="121"/><rect x="205" y="118" width="9" height="5" fill="${hl('input')}"/></g>
+  <g stroke="${hl('chair')}" stroke-width="${sw('chair')}" fill="none"><line x1="72" y1="152" x2="142" y2="152"/><line x1="72" y1="152" x2="64" y2="88"/><path d="M68 132q10 -4 12 -12" /><line x1="106" y1="152" x2="106" y2="204"/><line x1="84" y1="210" x2="128" y2="210"/></g>
+  <g stroke="var(--figure)" stroke-width="5" stroke-linecap="round" fill="none" opacity=".9">
+    <line x1="${neck[0]}" y1="${neck[1]}" x2="${hip[0]}" y2="${hip[1]}"/>
+    <line x1="${hip[0]}" y1="${hip[1]}" x2="${knee[0]}" y2="${knee[1]}"/><line x1="${knee[0]}" y1="${knee[1]}" x2="${ankle[0]}" y2="${ankle[1]}"/><line x1="${ankle[0]}" y1="${ankle[1]}" x2="${ankle[0]+18}" y2="${ankle[1]+2}"/>
+    <line x1="${sh[0]}" y1="${sh[1]}" x2="${elbow[0]}" y2="${elbow[1]}"/><line x1="${elbow[0]}" y1="${elbow[1]}" x2="${wrist[0]}" y2="${wrist[1]}"/>
+    <line x1="${neck[0]}" y1="${neck[1]}" x2="${head[0]}" y2="${head[1]}"/>
+  </g>
+  <circle cx="${head[0]}" cy="${head[1]}" r="12" fill="var(--surface)" stroke="var(--figure)" stroke-width="2"/>
+  <line x1="${head[0]+10}" y1="${eyeY}" x2="${monX}" y2="${eyeY}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>`;
+  if(!scan && part==='monitor') s += `<text x="${monX-6}" y="${eyeY-6}" text-anchor="end" font-size="9" fill="var(--accent)" font-family="Inter,sans-serif">eye level = top of screen</text><line x1="${head[0]}" y1="104" x2="${monX}" y2="104" stroke="var(--accent)" stroke-width="1"/><text x="${(head[0]+monX)/2}" y="100" text-anchor="middle" font-size="9" fill="var(--accent)" font-family="Inter,sans-serif">50–70 cm</text>`;
+  if(!scan && part==='chair') s += `<text x="34" y="128" font-size="9" fill="var(--accent)" font-family="Inter,sans-serif">lumbar</text><text x="150" y="176" font-size="9" fill="var(--accent)" font-family="Inter,sans-serif">90–100°</text>`;
+  if(!scan && part==='desk') s += `<text x="186" y="140" font-size="9" fill="var(--accent)" font-family="Inter,sans-serif">desk ≈ elbow height</text>`;
+  if(!scan && part==='input') s += `<text x="150" y="108" font-size="9" fill="var(--accent)" font-family="Inter,sans-serif">wrists straight</text>`;
+  if(scan){
+    const pts = [[head,'High'],[neck,'High'],[sh,'Medium'],[elbow,'Low'],[wrist,'Medium'],[hip,'Medium'],[knee,'Low'],[ankle,'Low']];
+    s += pts.map(([p,c])=>`<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="var(--${c==='High'?'high':c==='Medium'?'med':'low'})" stroke="var(--surface)" stroke-width="1.5"/>`).join('');
+    const tag = (x,y,t,c) => `<g font-family="Inter,sans-serif" font-size="9.5" font-weight="500"><rect x="${x}" y="${y-11}" width="${t.length*5.6+10}" height="16" fill="var(--${c}-bg)"/><text x="${x+5}" y="${y}" fill="var(--${c})">${t}</text></g>`;
+    s += tag(10,40,'Neck flexion 31°','high') + tag(4,104,'Trunk lean 14°','med') + tag(196,148,'Wrist ext. 22°','med') + tag(168,196,'Knee 92°','low') + tag(186,82,'14 cm below eye','high');
+  }
+  return s + '</svg>';
+}
+
+function scoreDial(v,cls){
+  const r=42, c=2*Math.PI*r, off=c*(1-v/100), col = cls==='High'?'var(--high)':cls==='Medium'?'var(--med)':'var(--low)';
+  return `<svg width="104" height="104" viewBox="0 0 104 104" aria-hidden="true"><circle cx="52" cy="52" r="${r}" fill="none" stroke="var(--tint-2)" stroke-width="8"/><circle cx="52" cy="52" r="${r}" fill="none" stroke="${col}" stroke-width="8" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 52 52)"/><text x="52" y="58" text-anchor="middle" font-family="Poppins,sans-serif" font-size="24" font-weight="300" fill="var(--fg)">${v}</text></svg>`;
+}
+
+function spark(arr,w=96,h=28){
+  const min=50,max=80, x=i=>i*(w-6)/(arr.length-1)+3, y=v=>h-3-(v-min)/(max-min)*(h-6);
+  const d = arr.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d} L${x(arr.length-1)} ${h} L3 ${h}Z" fill="var(--tint)"/><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5"/><circle cx="${x(arr.length-1)}" cy="${y(arr.at(-1))}" r="2.5" fill="var(--accent)"/></svg>`;
+}
+
+function lineChart(series){
+  const W=560,H=220,L=36,R=12,T=14,B=28, min=50,max=80;
+  const x=i=>L+i*(W-L-R)/(MONTHS.length-1), y=v=>T+(max-v)/(max-min)*(H-T-B);
+  let g='';
+  for(let v=50; v<=80; v+=10) g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--rule)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="Inter,sans-serif">${v}</text>`;
+  g += MONTHS.map((m,i)=>`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="Inter,sans-serif">${m}</text>`).join('');
+  const target = `<line x1="${L}" x2="${W-R}" y1="${y(70)}" y2="${y(70)}" stroke="var(--fg)" stroke-dasharray="4 4" stroke-width="1"/><text x="${W-R}" y="${y(70)-6}" text-anchor="end" font-size="10.5" fill="var(--fg)" font-family="Inter,sans-serif">Pilot target 70</text>`;
+  const paths = series.map((s,k)=>{
+    const d = s.v.map((v,i)=>`${i?'L':'M'}${x(i)} ${y(v)}`).join(' ');
+    const col = k===0?'var(--accent)':'var(--muted)';
+    return (k===0?`<path d="${d} L${x(s.v.length-1)} ${y(min)} L${x(0)} ${y(min)}Z" fill="var(--tint)" opacity=".8"/>`:'') +
+      `<path d="${d}" fill="none" stroke="${col}" stroke-width="${k===0?2.5:1.5}" ${k?'stroke-dasharray="2 3"':''}/>` +
+      `<circle cx="${x(s.v.length-1)}" cy="${y(s.v.at(-1))}" r="${k===0?4:3}" fill="${col}"/><text x="${x(s.v.length-1)-8}" y="${y(s.v.at(-1))-9}" text-anchor="end" font-size="11" font-weight="500" fill="${col}" font-family="Inter,sans-serif">${s.v.at(-1)}</text>`;
+  }).join('');
+  return `<svg class="svgc" viewBox="0 0 ${W} ${H}" role="img" aria-label="Average ergonomic score by month">${g}${target}${paths}</svg>`;
+}
+
+function bodyMap(){
+  const spots = {Neck:[60,40],'Lower back':[60,104],Shoulders:[[38,52],[82,52]],Wrists:[[22,118],[98,118]],Knees:[[50,172],[70,172]]};
+  const col = {High:'var(--high)',Medium:'var(--med)',Low:'var(--low)'};
+  let s = `<svg viewBox="0 0 120 220" width="120" height="220" role="img" aria-label="High-risk body areas"><g fill="none" stroke="var(--figure)" stroke-width="1.5" opacity=".6">
+  <circle cx="60" cy="20" r="12"/><path d="M60 32v8M40 48h40l-2 62H42zM40 50 24 116M80 50l16 66M44 110l4 92M76 110l-4 92"/></g>`;
+  BODY.forEach(([n,p,c])=>{ const pts = Array.isArray(spots[n][0])?spots[n]:[spots[n]]; pts.forEach(([x,y])=>{ s+=`<circle cx="${x}" cy="${y}" r="${4+p/4}" fill="${col[c]}" opacity=".35"/><circle cx="${x}" cy="${y}" r="3" fill="${col[c]}"/>`; }); });
+  return s+'</svg>';
+}
+
+/* ---------- views ---------- */
+const VIEWS = {};
+const BIND = {};
+
+VIEWS.home = () => {
+  const done = S.recsDone.size;
+  return `
+  <div class="head"><div><h1>Good morning, Sara</h1><p>Your last check found two high-risk items at your workstation. Fixing the monitor height alone moves you toward Medium risk.</p></div>
+  <button class="btn blue" data-go="capture">${ic('camera',18)} Re-check my posture</button></div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="label">Ergo score</div><div class="row" style="gap:10px"><div class="v num">58<small>/100</small></div>${pill('High')}</div><div class="d">Up 6 points since August</div></div>
+    <div class="card kpi"><div class="label">Actions completed</div><div class="v num">${done}<small>of ${RECS.length}</small></div><div class="bar" style="margin-top:12px"><i style="width:${done/RECS.length*100}%"></i></div></div>
+    <div class="card kpi"><div class="label">Breaks taken today</div><div class="v num">5<small>of 8</small></div><div class="d">Next micro-break in 12 min</div></div>
+    <div class="card kpi"><div class="label">Next assessment</div><div class="v num" style="font-size:28px;line-height:1.6">Feb 2, 2027</div><div class="d">Quarterly, set by OH – HSE</div></div>
+  </div>
+  <div class="grid g-main">
+    <div class="card"><div class="row between"><h2>Top findings from Nov 4</h2><button class="link" data-go="report">Open my report ${ic('arrow',16)}</button></div>
+      <div style="margin-top:8px">${AREAS.slice(0,3).map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div><h3>${f.title}</h3><p class="measure">${f.area} · ${f.measure}</p></div>${pill(f.sev)}</div>`).join('')}</div></div>
+    <div class="stack">
+      <div class="card tint stack"><div class="label">Today's stretch</div><h2>Chin tucks</h2><p>Sit tall, draw your chin straight back, hold for 3 seconds. Repeat 8 times. Targets your highest-risk area: the neck.</p><div class="row"><button class="btn sm" id="try-reminder">${ic('play',16)} Start 30 s routine</button></div></div>
+      <div class="card stack"><div class="label">Your journey</div>
+        ${[['Self-assessment','Completed Nov 4',true],['AI posture check','Completed Nov 4',true],['Fix workstation','In progress',false],['Re-assess','Due Feb 2, 2027',false]].map(([a,b,ok])=>`<div class="row" style="gap:10px"><span class="pill ${ok?'Low':'Info'}" style="min-width:76px">${ok?'Done':'Next'}</span><span style="color:var(--fg)">${a}</span><span class="muted" style="margin-left:auto;font-size:12px">${b}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+};
+BIND.home = v => { v.querySelector('#try-reminder').onclick = ()=>showReminder('stretch'); };
+
+VIEWS.check = () => {
+  if(S.checkSummary){
+    const items = Object.entries(S.answers).filter(([,a])=>a==='No'||a==='Partly');
+    return `
+    <div class="head"><div><h1>Your setup recommendations</h1><p>Self-assessment saved. Each recommendation below comes from a question you answered No or Partly.</p></div>
+    <div class="row"><button class="btn ghost" id="edit-answers">Edit answers</button><button class="btn blue" data-go="capture">${ic('camera',18)} Continue to AI posture check</button></div></div>
+    <div class="card"><div class="row between"><h2>${items.length} things to adjust</h2><span class="muted num">${items.filter(([k])=>S.fixesDone.has(k)).length} of ${items.length} done</span></div>
+    ${items.length?items.map(([k,a])=>{const [i,j]=k.split('-').map(Number);return `<div class="rec ${S.fixesDone.has(k)?'done':''}"><input type="checkbox" id="fix-${k}" data-fix="${k}" ${S.fixesDone.has(k)?'checked':''} aria-label="Mark as done"><div><p style="color:var(--fg)">${FIXES[k]}</p><p class="muted" style="font-size:12px">Step ${i+1}, ${STEPS[i].t} · you answered ${a}: “${STEPS[i].qs[j]}”</p></div></div>`}).join(''):'<p class="muted" style="padding:16px 0">Every check passed. Your workstation matches the recommended setup.</p>'}
+    </div>`;
+  }
+  const st = STEPS[S.step], last = S.step===STEPS.length-1;
+  return `
+  <div class="head"><div><h1>Workstation self-assessment</h1><p>Four short steps, about 4 minutes. Each one shows the correct setup so you can compare it with your own desk.</p></div><span class="muted num">${answered()} of 12 answered</span></div>
+  <div class="steps" role="list">${STEPS.map((s,i)=>`<button type="button" role="listitem" data-step="${i}" class="${stepDone(i)?'done':''}" ${i===S.step?'aria-current="step"':''}><span class="n">Step ${i+1}${stepDone(i)?' · done':''}</span><span class="t">${s.t}</span></button>`).join('')}</div>
+  <div class="grid g2">
+    <div class="card"><div class="label">Correct setup</div><h2 style="margin:4px 0 12px">${st.t}</h2>${figure('ideal',st.key)}<p class="muted" style="margin-top:8px">${st.hint}. Highlighted in blue.</p></div>
+    <div class="card"><div class="label">Your workstation</div>
+      ${st.qs.map((q,j)=>{const a=S.answers[`${S.step}-${j}`];return `<div class="q"><p>${q}</p><div class="seg" role="group" aria-label="Answer">${['Yes','Partly','No'].map(o=>`<button type="button" data-q="${S.step}-${j}" data-a="${o}" aria-pressed="${a===o}">${o}</button>`).join('')}</div></div>`}).join('')}
+      ${S.checkError?`<p role="alert" style="color:var(--high);margin-top:16px">${S.checkError}</p>`:''}
+      <div class="row between" style="margin-top:20px">
+        <button class="btn ghost sm" id="prev" ${S.step===0?'disabled':''}>Back</button>
+        ${last?`<button class="btn blue" id="finish">${ic('arrow',18)} See recommendations</button>`:`<button class="btn" id="next">${ic('arrow',18)} Next step</button>`}
+      </div>
+    </div>
+  </div>`;
+};
+BIND.check = v => {
+  if(S.checkSummary){
+    v.querySelector('#edit-answers').onclick=()=>{S.checkSummary=false;render();};
+    v.querySelectorAll('[data-fix]').forEach(c=>c.onchange=()=>{c.checked?S.fixesDone.add(c.dataset.fix):S.fixesDone.delete(c.dataset.fix);render();});
+    return;
+  }
+  v.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{S.step=+b.dataset.step;render();});
+  v.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{S.answers[b.dataset.q]=b.dataset.a; if(answered()===12) S.checkError=null; render();});
+  const p=v.querySelector('#prev'); if(p) p.onclick=()=>{S.step--;render();};
+  const n=v.querySelector('#next'); if(n) n.onclick=()=>{S.step++;render();};
+  const f=v.querySelector('#finish'); if(f) f.onclick=()=>{
+    const missing = STEPS.map((s,i)=>s.qs.filter((_,j)=>!S.answers[`${i}-${j}`]).length ? i+1 : 0).filter(Boolean);
+    const n = 12 - answered();
+    if(n){ S.checkError = `Answer the remaining ${n} question${n>1?'s':''} in step ${missing.join(' and ')} to see your recommendations.`; S.step = missing[0]-1; render(); return; }
+    S.checkError=null; S.checkSummary=true; toast('Self-assessment saved.'); render();
+  };
+};
+
+VIEWS.capture = () => `
+  <div class="head"><div><h1>AI posture check</h1><p>Take or upload one side-view photo while you work. The AI marks your joints, measures angles and checks your monitor, keyboard and chair setup.</p></div></div>
+  <div class="grid g2">
+    <div class="card stack">
+      <div class="drop" id="drop">${S.photo?`<img src="${S.photo}" alt="Uploaded workstation photo">`:`<div style="text-align:center;padding:24px" class="stack"><div style="color:var(--accent);display:flex;justify-content:center">${ic('camera',36)}</div><p style="color:var(--fg)">Side view, whole body in frame</p><p class="muted" style="font-size:12px">JPG, PNG or a 10-second video · webcam capture in the desktop agent</p></div>`}<div class="frame-guide"><span>Keep head, hips and feet inside</span></div></div>
+      <div class="row">
+        <label class="btn ghost sm" for="photo-in" style="cursor:pointer">${ic('upload',16)} Upload photo</label>
+        <input type="file" id="photo-in" accept="image/*" hidden>
+        <button class="btn ghost sm" id="webcam">${ic('camera',16)} Use webcam</button>
+        <button class="btn ghost sm" id="sample">Use sample photo</button>
+      </div>
+    </div>
+    <div class="card stack">
+      <div class="label">Before you start</div>
+      <div class="notice">${ic('shield',20)}<p>Your photo is converted to 17 body keypoints and then deleted. Only you and authorised Occupational Health staff can see your results. Your manager cannot.</p></div>
+      <label class="check"><input type="checkbox" id="consent" ${S.consent?'checked':''}><span>I agree to the AI posture analysis of my photo under the Client Ergonomics Privacy Notice.</span></label>
+      <div class="divider"></div>
+      <div class="label">Tips for an accurate result</div>
+      <ul style="margin:0;padding-left:18px">
+        <li>Place the camera 2–3 m away at desk height, to your side</li>
+        <li>Sit as you normally work, hands on keyboard</li>
+        <li>Make sure the monitor and chair are visible</li>
+      </ul>
+      <div class="progress" id="prog" ${S.analyzing?'':'hidden'}><i></i></div>
+      <p class="muted" id="prog-t" ${S.analyzing?'':'hidden'}>Detecting keypoints…</p>
+      <button class="btn blue" id="analyze" ${S.consent&&S.photo?'':'disabled'}>${ic('arrow',18)} Analyse my posture</button>
+      <p class="muted" style="font-size:12px">${S.consent?(S.photo?'Ready.':'Add a photo to continue.'):'Accept the privacy notice to continue.'}</p>
+    </div>
+  </div>`;
+BIND.capture = v => {
+  v.querySelector('#consent').onchange = e => {S.consent=e.target.checked;render();};
+  v.querySelector('#photo-in').onchange = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{S.photo=r.result;render();}; r.readAsDataURL(f); };
+  v.querySelector('#webcam').onclick = () => toast('In the live product the webcam opens here with the framing guide. In this demo, upload a photo or use the sample.');
+  v.querySelector('#sample').onclick = () => {
+    const svg = figure('ideal','none').replace('class="svgc"','xmlns="http://www.w3.org/2000/svg" style="background:#EEF5FF"').replace(/var\(--[a-z-]+\)/g,m=>({'var(--accent)':'#2979FF','var(--figure)':'#37464F','var(--rule)':'#DCDFE0','var(--surface)':'#ffffff'})[m]||'#37464F');
+    S.photo = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg); render();
+  };
+  v.querySelector('#analyze').onclick = () => {
+    S.analyzing = true; render();
+    const bar = document.querySelector('#prog i'), t = document.getElementById('prog-t');
+    const msgs = ['Detecting keypoints…','Measuring joint angles…','Locating monitor and keyboard…','Scoring against ROSA rules…'];
+    let k=0; const tick = setInterval(()=>{ k++; if(bar) bar.style.width = (k*25)+'%'; if(t) t.textContent = msgs[Math.min(k,3)];
+      if(k>=4){ clearInterval(tick); S.analyzing=false; S.analyzed=true; go('results'); } }, 550);
+  };
+};
+
+VIEWS.results = () => `
+  <div class="head"><div><h1>Your posture results</h1><p>Analysed Nov 4, 2026 from one side-view photo. Same rules for every employee, so results are comparable across the organisation.</p></div>
+  <div class="row"><button class="btn ghost" data-go="check">Redo self-assessment</button><button class="btn blue" data-go="report">${ic('arrow',18)} View recommendations</button></div></div>
+  <div class="grid g-main">
+    <div class="card"><div class="row between"><div class="label">Detected posture</div><div class="legend"><span><i style="background:var(--high)"></i>High</span><span><i style="background:var(--med)"></i>Medium</span><span><i style="background:var(--low)"></i>Low</span></div></div>${figure('scan')}</div>
+    <div class="card stack"><div class="label">Overall</div>
+      <div class="score-ring">${scoreDial(58,'High')}<div class="stack" style="gap:6px">${pill('High')}<p>Ergo score 58 of 100. Two findings are high risk, so your overall class is High.</p></div></div>
+      <div class="divider"></div>
+      ${[['Sitting posture','High'],['Monitor height and distance','High'],['Keyboard and mouse','Medium'],['Chair and desk','Low']].map(([a,c])=>`<div class="row between"><span style="color:var(--fg)">${a}</span>${pill(c)}</div>`).join('')}
+    </div>
+  </div>
+  <div class="card"><h2>Findings by area</h2>${AREAS.map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div class="stack" style="gap:4px"><h3>${f.title}</h3><p class="measure">${f.area} · ${f.measure}</p><p>${f.detail}</p></div>${pill(f.sev)}</div>`).join('')}</div>`;
+
+const reportBody = (who, own) => `
+  <div class="grid g3">
+    <div class="card stack"><div class="label">Risk classification</div><div class="score-ring">${scoreDial(who.score,who.cls)}<div class="stack" style="gap:6px">${pill(who.cls)}<p class="muted" style="font-size:12px">Assessed ${who.date}, 2026</p></div></div></div>
+    <div class="card stack"><div class="label">High-risk body areas</div>${[['Neck','High'],['Upper back','High'],['Wrists','Medium'],['Lower back','Low']].map(([a,c])=>`<div class="row between"><span style="color:var(--fg)">${a}</span>${pill(c)}</div>`).join('')}</div>
+    <div class="card stack"><div class="label">History</div>${HISTORY.map(h=>`<div class="row between"><span><span style="color:var(--fg)">${h.d}</span><br><span class="muted" style="font-size:12px">${h.type}</span></span><span class="num" style="color:var(--fg);font-weight:500">${own?h.score:(h.score-(58-who.score))}</span></div>`).join('')}</div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h2>AI findings</h2>${AREAS.map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div><h3>${f.title}</h3><p class="measure">${f.measure}</p></div>${pill(f.sev)}</div>`).join('')}</div>
+    <div class="card"><div class="row between"><h2>Corrective recommendations</h2><span class="muted num">${S.recsDone.size} of ${RECS.length} done</span></div>
+      ${RECS.map(r=>`<div class="rec ${S.recsDone.has(r.id)?'done':''}"><input type="checkbox" id="rec-${r.id}" data-rec="${r.id}" ${S.recsDone.has(r.id)?'checked':''} ${own?'':'disabled'} aria-label="Mark as done"><div><p style="color:var(--fg)">${r.text}</p><p class="muted" style="font-size:12px">${r.area} · ${r.how}</p></div></div>`).join('')}
+    </div>
+  </div>`;
+
+VIEWS.report = () => `
+  <div class="head"><div><h1>My ergonomic report</h1><p>Visible only to you and authorised Occupational Health – HSE staff.</p></div>
+  <div class="row"><button class="btn ghost" data-export="PDF">Export PDF</button><button class="btn blue" data-go="reminders">${ic('bell',18)} Set up reminders</button></div></div>
+  ${reportBody({score:58,cls:'High',date:'Nov 4'},true)}`;
+BIND.report = v => v.querySelectorAll('[data-rec]').forEach(c=>c.onchange=()=>{ c.checked?S.recsDone.add(c.dataset.rec):S.recsDone.delete(c.dataset.rec); render(); });
+
+VIEWS.reminders = () => {
+  const ex = EXERCISES.filter(e=>S.exFilter==='All'||e.area===S.exFilter);
+  const row = (k,label,desc) => `<div class="stack" style="gap:6px;padding:14px 0;border-bottom:1px solid var(--rule)">
+    <div class="row between"><label class="check" style="align-items:center"><input type="checkbox" data-type="${k}" ${S.types[k]?'checked':''}><span style="color:var(--fg);font-weight:500">${label}</span></label><button class="link" data-preview="${k}">Preview ${ic('arrow',14)}</button></div>
+    <p class="muted" style="font-size:12px">${desc}</p>
+    <div class="slider"><input type="range" min="15" max="120" step="5" value="${S.freq[k]}" data-freq="${k}" aria-label="${label} frequency" ${S.types[k]?'':'disabled'}><span class="num" style="color:var(--fg)">every <b id="f-${k}">${S.freq[k]}</b> min</span></div></div>`;
+  return `
+  <div class="head"><div><h1>Reminders &amp; stretches</h1><p>Short prompts from the desktop agent or your browser during working hours. Snoozing is always one click.</p></div></div>
+  <div class="profiles" role="group" aria-label="Reminder profile">${[['Light','Fewer prompts, breaks every 60 min'],['Balanced','Recommended by OH – HSE for your risk class'],['Active','Frequent movement, best for long screen days']].map(([n,d])=>`<button type="button" data-profile="${n}" aria-pressed="${S.profile===n}"><b>${n}</b><span class="muted" style="font-size:12px">${d}</span></button>`).join('')}</div>
+  <div class="grid g2">
+    <div class="card"><h2>Reminder types</h2>
+      ${row('break','Micro-break','Stand up and look away from the screen for 30–60 seconds')}
+      ${row('stretch','Stretching exercise','A guided 30–60 s stretch chosen for your high-risk areas')}
+      ${row('posture','Posture check','A quick prompt to sit back and bring your head over your shoulders')}
+      <div class="row" style="margin-top:16px;gap:16px"><label class="field"><span>Working hours start</span><input type="time" id="h-start" value="${S.hours[0]}"></label><label class="field"><span>End</span><input type="time" id="h-end" value="${S.hours[1]}"></label><label class="field"><span>Deliver via</span><select id="channel"><option>Desktop agent</option><option>Browser</option><option>Both</option></select></label></div>
+      ${S.remError?`<p role="alert" style="color:var(--high);margin-top:12px">${S.remError}</p>`:''}
+      <div class="row" style="margin-top:20px"><button class="btn" id="save-rem">Save reminders</button></div>
+    </div>
+    <div class="card"><div class="row between"><h2>Stretch library</h2></div>
+      <div class="chips" style="margin:12px 0 16px">${['All','Neck','Shoulders','Upper back','Wrists','Lower back','Eyes'].map(a=>`<button type="button" data-ex="${a}" aria-pressed="${S.exFilter===a}">${a}</button>`).join('')}</div>
+      <div class="stack" style="gap:0">${ex.map(e=>`<div class="rec"><span class="pill Info" style="min-width:58px">${e.dur}</span><div><p style="color:var(--fg);font-weight:500">${e.n}</p><p class="muted" style="font-size:12px">${e.area} · ${e.steps}</p></div></div>`).join('')}</div>
+    </div>
+  </div>`;
+};
+BIND.reminders = v => {
+  const presets = {Light:{break:60,stretch:120,posture:90},Balanced:{break:30,stretch:60,posture:45},Active:{break:20,stretch:40,posture:30}};
+  v.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{S.profile=b.dataset.profile;S.freq={...presets[S.profile]};render();});
+  v.querySelectorAll('[data-freq]').forEach(r=>r.oninput=()=>{S.freq[r.dataset.freq]=+r.value;document.getElementById('f-'+r.dataset.freq).textContent=r.value;});
+  v.querySelectorAll('[data-type]').forEach(c=>c.onchange=()=>{S.types[c.dataset.type]=c.checked;render();});
+  v.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>showReminder(b.dataset.preview));
+  v.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{S.exFilter=b.dataset.ex;render();});
+  v.querySelector('#h-start').onchange=e=>S.hours[0]=e.target.value;
+  v.querySelector('#h-end').onchange=e=>S.hours[1]=e.target.value;
+  v.querySelector('#save-rem').onclick=()=>{
+    if(!S.hours[0]||!S.hours[1]||S.hours[1]<=S.hours[0]){ S.remError='Working hours must end after they start. Check the start and end times.'; render(); return; }
+    if(!Object.values(S.types).some(Boolean)){ S.remError='Turn on at least one reminder type, or switch reminders off in your profile.'; render(); return; }
+    S.remError=null; render(); toast(`Saved. ${S.profile} profile, ${S.hours[0]}–${S.hours[1]}.`);
+  };
+};
+
+function showReminder(kind){
+  const c = {break:['Micro-break','Stand up and look at something far away for 30 seconds.','You have been sitting for 32 minutes.'],
+    stretch:['Stretch: chin tucks','Sit tall, draw your chin straight back, hold 3 s. Repeat 8 times.','Chosen for your neck, a high-risk area.'],
+    posture:['Posture check','Slide back in your chair and bring your head over your shoulders.','Last AI check: neck flexion 31°.']}[kind];
+  const root = document.getElementById('notify-root');
+  root.innerHTML = `<div class="notify" role="dialog" aria-label="Reminder"><header><span>ErgoSense · desktop reminder</span><button type="button" aria-label="Close" id="n-x">×</button></header>
+    <div class="body"><h3>${c[0]}</h3><p>${c[1]}</p><p class="muted" style="font-size:12px">${c[2]}</p>
+    <div class="row"><button class="btn blue sm" data-n="Done. Nice work.">Done</button><button class="btn ghost sm" data-n="Snoozed for 10 minutes.">Snooze 10 min</button><button class="link" data-n="Skipped. We'll remind you later.">Skip</button></div></div></div>`;
+  root.querySelector('#n-x').onclick=()=>root.innerHTML='';
+  root.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{root.innerHTML='';toast(b.dataset.n);});
+}
+
+/* ---------- HSE ---------- */
+function filtered(){ return DEPTS.filter(d=>(S.dept==='All'||d.name===S.dept)&&(S.entity==='All'||d.entity===S.entity)); }
+VIEWS.hse = () => {
+  const pf = {'Pilot to date':1,'Last 30 days':.28,'Q4 2026':.46}[S.period];
+  const ds = filtered(), emp = ds.reduce((a,d)=>a+d.emp,0), as = Math.round(ds.reduce((a,d)=>a+d.assessed,0)*pf), hi = Math.round(ds.reduce((a,d)=>a+d.high,0)*pf);
+  const share = as/412 || 0;
+  const avg = ds.length ? Math.round(ds.reduce((a,d)=>a+d.trend.at(-1)*d.assessed,0)/Math.max(as,1)) : 0;
+  const trend = MONTHS.map((_,i)=>ds.length?Math.round(ds.reduce((a,d)=>a+d.trend[i]*d.assessed,0)/Math.max(as,1)):0);
+  const maxI = ISSUES[0][1];
+  const small = as>0 && as<5;
+  return `
+  <div class="head"><div><h1>Ergonomics overview</h1><p>Aggregated, de-identified data for the pilot cohort. Groups under 5 people are hidden to protect privacy.</p></div>
+  <div class="row"><button class="btn ghost" data-export="PDF">Export PDF</button><button class="btn ghost" data-export="Excel">Export Excel</button></div></div>
+  <div class="row" style="gap:16px">
+    <label class="field"><span>Entity</span><select id="f-entity"><option>All</option>${[...new Set(DEPTS.map(d=>d.entity))].map(e=>`<option ${S.entity===e?'selected':''}>${e}</option>`).join('')}</select></label>
+    <label class="field"><span>Department</span><select id="f-dept"><option>All</option>${DEPTS.map(d=>`<option ${S.dept===d.name?'selected':''}>${d.name}</option>`).join('')}</select></label>
+    <label class="field"><span>Period</span><select id="f-period">${['Pilot to date','Last 30 days','Q4 2026'].map(p=>`<option ${S.period===p?'selected':''}>${p}</option>`).join('')}</select></label>
+  </div>
+  ${small?`<div class="notice">${ic('info',20)}<p>This selection has fewer than 5 assessed employees, so results are hidden.</p></div>`:''}
+  <div class="grid g4">
+    <div class="card kpi"><div class="label">Assessments conducted</div><div class="v num">${as}</div><div class="d">${emp?Math.round(as/emp*100):0}% of ${emp} employees in scope</div></div>
+    <div class="card kpi"><div class="label">High-risk employees</div><div class="v num" style="color:var(--high)">${hi}</div><div class="d">${as?Math.round(hi/as*100):0}% of assessed · <button class="link" data-go="cases" style="font-size:12px">Follow up</button></div></div>
+    <div class="card kpi"><div class="label">Average ergo score</div><div class="v num">${avg}<small>/100</small></div><div class="d">+${avg-trend[0]} since July</div></div>
+    <div class="card kpi"><div class="label">Reminder engagement</div><div class="v num">54<small>%</small></div><div class="d">Breaks taken / reminders shown</div></div>
+  </div>
+  <div class="grid g-main">
+    <div class="card"><div class="row between"><h2>Average score trend</h2><div class="legend"><span><i style="background:var(--accent)"></i>Selection</span><span><i style="background:var(--muted)"></i>Whole pilot</span></div></div>${lineChart([{v:trend},{v:[61,64,66,69,72]}])}</div>
+    <div class="card"><h2>High-risk body areas</h2><div class="row" style="gap:20px;align-items:center;margin-top:12px;flex-wrap:nowrap">${bodyMap()}<div class="stack" style="flex:1;gap:8px;min-width:0">${BODY.map(([n,p,c])=>`<div class="row between" style="flex-wrap:nowrap"><span style="color:var(--fg)">${n}</span><span class="pill ${c} num">${p}%</span></div>`).join('')}</div></div><p class="muted" style="font-size:12px;margin-top:8px">Share of high-risk findings by body area</p></div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h2>Most common issues</h2><div style="margin-top:12px">${ISSUES.map(([n,c])=>{const v=Math.round(c*share);return `<div class="hbar"><span class="nm" title="${n}">${n}</span><span class="track"><i style="width:${c/maxI*100}%"></i></span><span class="val num">${v}</span></div>`}).join('')}</div><p class="muted" style="font-size:12px;margin-top:8px">Employees with each finding</p></div>
+    <div class="card" style="padding:0"><div style="padding:24px 24px 8px"><h2>Department trends</h2></div><div style="overflow-x:auto"><table><thead><tr><th style="padding-left:24px">Department</th><th>Assessed</th><th>High risk</th><th>Score</th><th>Jul–Nov</th></tr></thead><tbody>
+      ${ds.map(d=>`<tr><td style="padding-left:24px;color:var(--fg)">${d.name}<br><span class="muted" style="font-size:12px">${d.entity}</span></td><td class="num">${Math.round(d.assessed/d.emp*100)}%</td><td class="num">${Math.round(d.high/d.assessed*100)}%</td><td class="num" style="color:var(--fg);font-weight:500">${d.trend.at(-1)}</td><td>${spark(d.trend)}</td></tr>`).join('')}
+    </tbody></table></div></div>
+  </div>`;
+};
+BIND.hse = v => {
+  v.querySelector('#f-entity').onchange=e=>{S.entity=e.target.value; if(S.dept!=='All'&&DEPTS.find(d=>d.name===S.dept).entity!==S.entity&&S.entity!=='All') S.dept='All'; render();};
+  v.querySelector('#f-dept').onchange=e=>{S.dept=e.target.value;render();};
+  v.querySelector('#f-period').onchange=e=>{S.period=e.target.value;render();};
+};
+
+VIEWS.cases = () => `
+  <div class="head"><div><h1>High-risk follow-up</h1><p>Employees whose latest assessment is High or Medium risk. Opening an individual report is recorded in the audit log.</p></div>
+  <button class="btn ghost" data-export="Excel">Export list</button></div>
+  <div class="grid g3">
+    <div class="card kpi"><div class="label">New</div><div class="v num">${CASES.filter(c=>c.status==='New').length}</div><div class="d">Not yet contacted</div></div>
+    <div class="card kpi"><div class="label">Contacted</div><div class="v num">${CASES.filter(c=>c.status==='Contacted').length}</div><div class="d">Awaiting workstation change</div></div>
+    <div class="card kpi"><div class="label">Resolved</div><div class="v num">${CASES.filter(c=>c.status==='Resolved').length}</div><div class="d">Re-assessed at lower risk</div></div>
+  </div>
+  <div class="row" style="gap:16px">
+    <label class="field"><span>Risk class</span><select id="c-risk">${['All','High','Medium'].map(o=>`<option ${S.cRisk===o?'selected':''}>${o}</option>`).join('')}</select></label>
+    <label class="field"><span>Department</span><select id="c-dept"><option>All</option>${DEPTS.map(d=>`<option ${S.cDept===d.name?'selected':''}>${d.name}</option>`).join('')}</select></label>
+    <label class="field"><span>Status</span><select id="c-stat">${['All','New','Contacted','Resolved'].map(o=>`<option ${S.cStatus===o?'selected':''}>${o}</option>`).join('')}</select></label>
+  </div>
+  <div class="tbl"><table><thead><tr><th>Employee</th><th>Department</th><th>Risk</th><th>Score</th><th>Top issue</th><th>Assessed</th><th>Status</th><th></th></tr></thead><tbody>
+  ${(()=>{const rows=CASES.filter(c=>(S.cRisk==='All'||c.cls===S.cRisk)&&(S.cDept==='All'||c.dept===S.cDept)&&(S.cStatus==='All'||c.status===S.cStatus));
+    return rows.length?'':`<tr><td colspan="8" class="muted" style="padding:28px 20px">No employees match these filters. <button class="link" id="c-clear">Clear filters</button></td></tr>`;})()}
+  ${CASES.filter(c=>(S.cRisk==='All'||c.cls===S.cRisk)&&(S.cDept==='All'||c.dept===S.cDept)&&(S.cStatus==='All'||c.status===S.cStatus)).map(c=>`<tr><td style="color:var(--fg)">${c.name}<br><span class="muted" style="font-size:12px">${c.id.toUpperCase()}</span></td><td>${c.dept}</td><td>${pill(c.cls)}</td><td class="num" style="color:var(--fg)">${c.score}</td><td>${c.issue}</td><td class="num">${c.date}</td><td><span class="pill ${c.status==='Resolved'?'Low':c.status==='Contacted'?'Info':'Medium'}">${c.status}</span></td><td><a class="link" href="#case-${c.id}">Open ${ic('arrow',14)}</a></td></tr>`).join('')}
+  </tbody></table></div>`;
+
+BIND.cases = v => {
+  v.querySelector('#c-risk').onchange=e=>{S.cRisk=e.target.value;render();};
+  v.querySelector('#c-dept').onchange=e=>{S.cDept=e.target.value;render();};
+  v.querySelector('#c-stat').onchange=e=>{S.cStatus=e.target.value;render();};
+  const c=v.querySelector('#c-clear'); if(c) c.onclick=()=>{S.cRisk=S.cDept=S.cStatus='All';render();};
+};
+
+VIEWS.case = () => {
+  const c = CASES.find(x=>x.id===S.caseId) || CASES[0];
+  return `
+  <div class="head"><div><button class="link" data-go="cases" style="margin-bottom:8px">← High-risk follow-up</button><h1>${c.name}</h1><p>${c.dept} · ${c.id.toUpperCase()} · Your access to this report has been recorded in the audit log.</p></div>
+  <div class="row"><label class="field"><span>Follow-up status</span><select id="c-status">${['New','Contacted','Resolved'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}</select></label><button class="btn ghost" data-export="PDF">Export PDF</button></div></div>
+  ${reportBody(c,false)}`;
+};
+BIND.case = v => { v.querySelector('#c-status').onchange = e => { const c = CASES.find(x=>x.id===S.caseId); if(c){c.status=e.target.value; toast(`Status set to ${c.status}.`);} }; };
+
+VIEWS.pilot = () => {
+  const K = [['Pilot employees assessed','86%',86,80,'≥ 80%','Low'],['Average time per assessment','7 min 40 s',77,100,'≤ 10 min','Low'],['Moved to a lower risk class','37%',37,40,'≥ 40%','Medium'],['Reminder engagement','54%',54,50,'≥ 50%','Low'],['Employee satisfaction','4.3 / 5',86,80,'≥ 4 / 5','Low']];
+  return `
+  <div class="head"><div><h1>Pilot evaluation</h1><p>480 employees across 3 entities, Jul 14 – Dec 12, 2026. Progress against the targets agreed for the rollout decision.</p></div>
+  <button class="btn blue" data-export="evaluation report (PDF)">${ic('report',18)} Generate evaluation report</button></div>
+  <div class="card" style="padding:0"><div style="overflow-x:auto"><table><thead><tr><th style="padding-left:24px">Success metric</th><th>Result</th><th style="min-width:200px">Progress to target</th><th>Target</th><th>Status</th></tr></thead><tbody>
+  ${K.map(([n,v,p,t,tl,c])=>`<tr><td style="padding-left:24px;color:var(--fg)">${n}</td><td class="num" style="color:var(--fg);font-weight:500">${v}</td><td><div class="bar target"><i style="width:${Math.min(p,100)}%;${c==='Medium'?'background:var(--med)':''}"></i><b style="left:${t}%"></b></div></td><td class="num">${tl}</td><td><span class="pill ${c}">${c==='Low'?'On target':'Behind'}</span></td></tr>`).join('')}
+  </tbody></table></div></div>
+  <div class="grid g2">
+    <div class="card"><h2>Timeline</h2><div class="stack" style="margin-top:12px">
+      ${[['Kick-off and integration','Done','Low','SSO, HR import, hosting in approved region'],['Commissioning and SAT','Done','Low','Signed off Jul 10'],['Pilot live, 480 users','In progress','Info','Week 16 of 22'],['Quarterly re-assessment','In progress','Info','212 of 412 re-assessed'],['Evaluation report and rollout decision','Dec 2026','Medium','Scale to 4,000–5,000 employees']].map(([a,s,c,d])=>`<div class="row" style="flex-wrap:nowrap;align-items:flex-start"><span class="pill ${c}" style="min-width:96px">${s}</span><div><p style="color:var(--fg)">${a}</p><p class="muted" style="font-size:12px">${d}</p></div></div>`).join('')}
+    </div></div>
+    <div class="card tint stack"><div class="label">Reading the results</div><h2>Re-assessments are behind the risk target</h2><p>37% of re-assessed employees moved to a lower risk class against a 40% target. 200 re-assessments are still due before Dec 12. Employees who completed the monitor recommendation improved 3 times more often than those who did not.</p><button class="link" data-go="cases">Prioritise open high-risk cases ${ic('arrow',16)}</button></div>
+  </div>`;
+};
+
+/* ---------- Admin ---------- */
+VIEWS.users = () => `
+  <div class="head"><div><h1>Users &amp; departments</h1><p>Users sign in with company SSO. Department and entity come from the HR file and drive all reporting.</p></div></div>
+  <div class="grid g-main">
+    <div class="card stack"><div class="row between"><h2>Import from HR</h2><span class="muted" style="font-size:12px">Last sync Nov 5, 16:03</span></div>
+      <p>Upload a CSV with <code>email, department, entity, role, cohort</code>. Existing users are updated, nobody is deleted.</p>
+      <div class="row"><label class="btn ghost sm" for="csv-in" style="cursor:pointer">${ic('upload',16)} Choose CSV file</label><input type="file" id="csv-in" accept=".csv,text/csv" hidden><button class="btn sm" id="csv-sample">Use sample file</button></div>
+      ${S.imported?`<div class="notice">${ic('check',20)}<p>${esc(S.imported)}</p></div>`:''}
+    </div>
+    <div class="card stack"><div class="label">Pilot cohort</div><div class="kpi"><div class="v num">480<small>of 500 seats</small></div></div><div class="bar"><i style="width:96%"></i></div><p class="muted" style="font-size:12px">Pilot A: 260 · Pilot B: 220</p></div>
+  </div>
+  <div class="tbl"><table><thead><tr><th>Name</th><th>Department</th><th>Entity</th><th>Role</th><th>Cohort</th></tr></thead><tbody>
+  ${ADMIN_USERS.map((u,i)=>`<tr><td style="color:var(--fg)">${u[0]}<br><span class="muted" style="font-size:12px">${u[1]}</span></td><td>${u[2]}</td><td>${u[3]}</td><td><select id="role-${i}" aria-label="Role for ${u[0]}" data-u="${i}">${['Employee','HSE / OH','Admin'].map(r=>`<option ${u[4]===r?'selected':''}>${r}</option>`).join('')}</select></td><td><select id="cohort-${i}" aria-label="Cohort for ${u[0]}" data-cohort="${i}">${['—','Pilot A','Pilot B'].map(c=>`<option ${u[5]===c?'selected':''}>${c}</option>`).join('')}</select></td></tr>`).join('')}
+  </tbody></table></div>`;
+BIND.users = v => {
+  v.querySelector('#csv-in').onchange = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const n=r.result.split(/\r?\n/).filter(l=>l.trim()).length-1; S.imported=`${f.name}: ${Math.max(n,0)} rows read. In the live product they are checked and applied after you confirm.`; render(); }; r.readAsText(f); };
+  v.querySelector('#csv-sample').onclick = () => { S.imported = 'hr_export_nov.csv: 38 rows read · 36 unchanged · 2 department changes. Applied.'; render(); };
+  v.querySelectorAll('[data-u]').forEach(s=>s.onchange=()=>{ ADMIN_USERS[s.dataset.u][4]=s.value; toast(`${ADMIN_USERS[s.dataset.u][0]} is now ${s.value}. Change logged.`); });
+  v.querySelectorAll('[data-cohort]').forEach(s=>s.onchange=()=>{ ADMIN_USERS[s.dataset.cohort][5]=s.value; toast(s.value==='—'?`${ADMIN_USERS[s.dataset.cohort][0]} removed from the pilot.`:`${ADMIN_USERS[s.dataset.cohort][0]} added to ${s.value}.`); });
+};
+
+VIEWS.access = () => {
+  const M = [['Own report and reminders','yes','yes','yes'],['Individual reports of others','no','yes','no'],['Aggregated dashboards','no','yes','yes'],['Export PDF / Excel','Own','yes','no'],['Manage users and roles','no','no','yes'],['Organisation policies','no','Propose','yes'],['View audit log','no','Own actions','yes']];
+  const cell = x => x==='yes'?'<span class="yes">Yes</span>':x==='no'?'<span class="no">—</span>':`<span style="color:var(--fg)">${x}</span>`;
+  return `
+  <div class="head"><div><h1>Roles &amp; policies</h1><p>Admins manage the platform but cannot open individual ergonomic reports. Only the employee and authorised OH – HSE staff can.</p></div></div>
+  <div class="tbl"><table class="matrix"><thead><tr><th>Permission</th><th>Employee</th><th>HSE / OH</th><th>Admin</th></tr></thead><tbody>${M.map(r=>`<tr><td style="color:var(--fg)">${r[0]}</td>${r.slice(1).map(c=>`<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <div class="card"><h2>Organisation policies</h2>
+    <div class="grid g3" style="margin-top:16px">
+      <label class="field"><span>Re-assessment interval</span><select id="p-int"><option>Every 90 days</option><option>Every 180 days</option><option>Every 12 months</option></select></label>
+      <label class="field"><span>Default reminder profile</span><select id="p-prof"><option>Balanced</option><option>Light</option><option>Active</option></select></label>
+      <label class="field"><span>Smallest group shown in dashboards</span><select id="p-min"><option>5 employees</option><option>10 employees</option></select></label>
+      <label class="field"><span>Raw photos and videos</span><select id="p-raw"><option>Delete after analysis</option><option>Keep 30 days</option></select></label>
+      <label class="field"><span>AI capture input</span><select id="p-cap"><option>Photo and video</option><option>Photo only</option><option>Self-assessment only</option></select></label>
+      <label class="field"><span>Data hosting region</span><select id="p-reg"><option>Client-approved region</option></select></label>
+    </div>
+    <div class="row" style="margin-top:20px"><button class="btn" id="save-pol">Save policies</button><span class="muted" style="font-size:12px">Encryption at rest (AES-256) and in transit (TLS 1.2+) is always on.</span></div>
+  </div>`;
+};
+BIND.access = v => v.querySelector('#save-pol').onclick = () => toast('Policies saved and logged.');
+
+VIEWS.audit = () => `
+  <div class="head"><div><h1>Audit log</h1><p>Every access to an individual report, export, role change and data deletion is recorded and kept for 2 years.</p></div><button class="btn ghost" data-export="CSV">Export log</button></div>
+  <div class="tbl"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody>${AUDIT.map(a=>`<tr><td class="num">${a[0]}</td><td style="color:var(--fg)">${a[1]}</td><td>${a[2]}</td><td class="muted">${a[3]}</td></tr>`).join('')}</tbody></table></div>`;
+
+VIEWS.signin = () => `
+  <div class="card signin-card">
+    <div class="brand" style="padding:0"><div class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.6"><circle cx="9" cy="3.5" r="2"/><path d="M9 6v6l-3 4M9 12l3 4M5 8.5h8"/></svg></div><span class="brand-name">ErgoSense</span></div>
+    <div><h1 style="font-size:26px">Sign in</h1><p class="muted">Use your Client work account. Your role and department come from HR, so there is nothing to set up.</p></div>
+    <button class="btn blue" id="sso">${ic('shield',18)} Sign in with Client SSO</button>
+    <div class="divider"></div>
+    <div class="label">Demo: sign in as</div>
+    <div class="roles" role="group" aria-label="Demo role">${['employee','hse','admin'].map(r=>`<button type="button" data-signin="${r}" aria-pressed="${S.role===r}">${{employee:'Employee',hse:'HSE / OH',admin:'Admin'}[r]}</button>`).join('')}</div>
+    <p class="muted" style="font-size:12px">Single sign-on through the Client identity provider (SAML / OIDC). Sessions time out after 30 minutes of inactivity.</p>
+  </div>`;
+BIND.signin = v => {
+  v.querySelectorAll('[data-signin]').forEach(b=>b.onclick=()=>{S.role=b.dataset.signin;render();});
+  v.querySelector('#sso').onclick=()=>go(FIRST[S.role]);
+};
+
+/* global clicks */
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if(g){ e.preventDefault(); go(g.dataset.go); return; }
+  const x = e.target.closest('[data-export]'); if(x){ toast(`In the live product this downloads the ${x.dataset.export}.`); }
+});
+
+render();
+</script>
