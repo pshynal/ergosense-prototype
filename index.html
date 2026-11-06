@@ -206,7 +206,7 @@ input[type="range"]{width:100%;accent-color:var(--accent)}
 .app.signin{grid-template-columns:minmax(0,1fr)}
 .app.signin .side{display:none}
 .signin-card{max-width:440px;width:100%;margin:6vh auto 0;display:flex;flex-direction:column;gap:18px}
-.side-foot .link{margin-left:auto;font-size:12px}
+.side-foot .link{margin-left:auto;font-size:12px;white-space:nowrap}
 @media (max-width:1080px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g-main,.g3{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:820px){
   .app{grid-template-columns:minmax(0,1fr)}
@@ -354,6 +354,10 @@ const ADMIN_USERS = [
   ['Mariam Saleh','mariam.saleh','Education Programs','Education Campus','Employee','Pilot B'],
   ['Hana Youssef','hana.youssef','Finance','Headquarters','Employee','Pilot B']
 ];
+let REVIEWS = [
+  {id:'r-1302',emp:'e1302',name:'Khalid Rahman',dept:'Community Development',cls:'High',area:'Keyboard and mouse',comment:'I use a vertical mouse, so the wrist angle reading looks wrong.',date:'Nov 5',status:'Submitted',outcome:null},
+  {id:'r-0917',emp:'e0917',name:'Mariam Saleh',dept:'Education Programs',cls:'High',area:'Chair and desk',comment:'My lumbar cushion was not visible in the photo.',date:'Nov 3',status:'In review',outcome:null}
+];
 const AUDIT = [
   ['Nov 6, 09:42','Dr. Omar Nasser','Viewed individual report','e1188 · Yousef Darwish'],
   ['Nov 6, 09:15','Aisha Fares','Exported dashboard','Excel · All departments · Q4'],
@@ -369,7 +373,8 @@ const S = {
   freq:{break:30,stretch:60,posture:45}, hours:['08:00','16:00'], types:{break:true,stretch:true,posture:true},
   exFilter:'All', dept:'All', entity:'All', period:'Pilot to date', caseId:'e1043', imported:null,
   checkSummary:false, checkError:null, fixesDone:new Set(), remError:null,
-  cRisk:'All', cDept:'All', cStatus:'All'
+  cRisk:'All', cDept:'All', cStatus:'All',
+  aiAllowed:true, aiSuspended:false, delStep:null, review:null, reviewOpen:false
 };
 STEPS.forEach((s,i)=>s.qs.forEach((_,j)=>{S.answers[`${i}-${j}`] = ({'0-0':'Yes','0-1':'Yes','0-2':'Yes','1-0':'Yes','1-1':'No','1-2':'Yes','2-0':'No','2-1':'No'})[`${i}-${j}`] || null;}));
 
@@ -381,8 +386,10 @@ const ROUTES = {
   results:{role:'employee',label:'AI posture check / Results',icon:'camera',hidden:true,parent:'capture'},
   report:{role:'employee',label:'My report',icon:'report'},
   reminders:{role:'employee',label:'Reminders',icon:'bell'},
+  mydata:{role:'employee',label:'My data',icon:'shield'},
   hse:{role:'hse',label:'Dashboard',icon:'grid'},
   cases:{role:'hse',label:'High-risk follow-up',icon:'alert'},
+  reviews:{role:'hse',label:'Specialist reviews',icon:'check'},
   pilot:{role:'hse',label:'Pilot evaluation',icon:'flag'},
   users:{role:'admin',label:'Users & departments',icon:'users'},
   access:{role:'admin',label:'Roles & policies',icon:'shield'},
@@ -585,7 +592,13 @@ BIND.check = v => {
   };
 };
 
-VIEWS.capture = () => `
+VIEWS.capture = () => S.aiSuspended ? `
+  <div class="head"><div><h1>AI posture check</h1><p>AI analysis is paused by Occupational Health – HSE while results are checked. Nothing is wrong with your data.</p></div></div>
+  <div class="notice">${ic('info',20)}<p>You can still complete the workstation self-assessment, follow your recommendations and use reminders.</p></div>
+  <div class="row"><button class="btn" data-go="check">${ic('check',18)} Go to self-assessment</button></div>` : !S.aiAllowed ? `
+  <div class="head"><div><h1>AI posture check</h1><p>You have withdrawn consent for AI posture analysis, so this check is switched off.</p></div></div>
+  <div class="notice">${ic('shield',20)}<p>Everything else keeps working: self-assessment, recommendations, reminders and your report. You can give consent again at any time in My data.</p></div>
+  <div class="row"><button class="btn ghost" data-go="mydata">${ic('shield',18)} Open My data</button><button class="btn" data-go="check">${ic('check',18)} Go to self-assessment</button></div>` : `
   <div class="head"><div><h1>AI posture check</h1><p>Take or upload one side-view photo while you work. The AI marks your joints, measures angles and checks your monitor, keyboard and chair setup.</p></div></div>
   <div class="grid g2">
     <div class="card stack">
@@ -615,6 +628,7 @@ VIEWS.capture = () => `
     </div>
   </div>`;
 BIND.capture = v => {
+  if(!v.querySelector('#consent')) return;
   v.querySelector('#consent').onchange = e => {S.consent=e.target.checked;render();};
   v.querySelector('#photo-in').onchange = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{S.photo=r.result;render();}; r.readAsDataURL(f); };
   v.querySelector('#webcam').onclick = () => toast('In the live product the webcam opens here with the framing guide. In this demo, upload a photo or use the sample.');
@@ -634,17 +648,42 @@ BIND.capture = v => {
   };
 };
 
+function reviewCard(){
+  const r = S.review;
+  if(r) return `<div class="card stack"><div class="row between"><h2>Specialist review</h2><span class="pill ${r.status==='Resolved'?'Low':'Info'}">${r.status}</span></div>
+    <p>You asked an Occupational Health specialist to review this result on ${r.date}${r.comment?`: “${esc(r.comment)}”`:'.'}</p>
+    <p class="muted" style="font-size:12px">${r.status==='Resolved'?esc(r.outcome):'Reviews are usually completed within 3 working days. You will get a notification when it is done.'}</p></div>`;
+  if(S.reviewOpen) return `<div class="card stack"><h2>Request specialist review</h2>
+    <p>Tell us what looks wrong. An OH specialist will check the photo analysis and your self-assessment, and can correct the result.</p>
+    <label class="field"><span>What looks wrong? (optional)</span><textarea id="rv-comment" rows="3" style="font:inherit;border:1px solid var(--rule);background:var(--surface);color:var(--fg);padding:8px 10px;border-radius:0" placeholder="For example: I use a footrest that is not visible in the photo."></textarea></label>
+    <div class="row"><button class="btn blue" id="rv-send">${ic('arrow',18)} Send request</button><button class="btn ghost" id="rv-cancel">Cancel</button></div></div>`;
+  return `<div class="card row between"><div><h2>Does this look wrong?</h2><p class="muted">You can ask an Occupational Health specialist to review the AI result.</p></div><button class="btn ghost" id="rv-open">Request specialist review</button></div>`;
+}
+BIND.results = v => {
+  const o=v.querySelector('#rv-open'); if(o) o.onclick=()=>{S.reviewOpen=true;render();};
+  const c=v.querySelector('#rv-cancel'); if(c) c.onclick=()=>{S.reviewOpen=false;render();};
+  const s=v.querySelector('#rv-send'); if(s) s.onclick=()=>{
+    const comment=v.querySelector('#rv-comment').value.trim();
+    S.review={status:'Submitted',comment,date:'Nov 6',outcome:null}; S.reviewOpen=false;
+    REVIEWS.unshift({id:'r-1043',emp:'e1043',name:'Sara Haddad',dept:'Research Office',cls:'High',area:'Monitor height and distance',comment:comment||'No comment',date:'Nov 6',status:'Submitted',outcome:null});
+    logAudit('Requested specialist review','e1043 · AI result Nov 4'); toast('Review requested. OH – HSE will reply within 3 working days.'); render();
+  };
+};
+
 VIEWS.results = () => `
-  <div class="head"><div><h1>Your posture results</h1><p>Analysed Nov 4, 2026 from one side-view photo. Same rules for every employee, so results are comparable across the organisation.</p></div>
+  <div class="head"><div><h1>Your posture results</h1><p>Analysed Nov 4, 2026 from one side-view photo with the same versioned rules used for every employee. This is ergonomic guidance, not a medical assessment.</p></div>
   <div class="row"><button class="btn ghost" data-go="check">Redo self-assessment</button><button class="btn blue" data-go="report">${ic('arrow',18)} View recommendations</button></div></div>
   <div class="grid g-main">
     <div class="card"><div class="row between"><div class="label">Detected posture</div><div class="legend"><span><i style="background:var(--high)"></i>High</span><span><i style="background:var(--med)"></i>Medium</span><span><i style="background:var(--low)"></i>Low</span></div></div>${figure('scan')}</div>
     <div class="card stack"><div class="label">Overall</div>
       <div class="score-ring">${scoreDial(58,'High')}<div class="stack" style="gap:6px">${pill('High')}<p>Ergo score 58 of 100. Two findings are high risk, so your overall class is High.</p></div></div>
+      <div class="row" style="gap:16px"><span class="measure">Confidence 0.91 · good image quality</span><span class="measure">Pose model MoveNet 4.1 · ROSA rules v1.3</span></div>
+      ${S.review&&S.review.outcome?`<div class="notice">${ic('check',20)}<p>${S.review.outcome}</p></div>`:''}
       <div class="divider"></div>
       ${[['Sitting posture','High'],['Monitor height and distance','High'],['Keyboard and mouse','Medium'],['Chair and desk','Low']].map(([a,c])=>`<div class="row between"><span style="color:var(--fg)">${a}</span>${pill(c)}</div>`).join('')}
     </div>
   </div>
+  ${reviewCard()}
   <div class="card"><h2>Findings by area</h2>${AREAS.map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div class="stack" style="gap:4px"><h3>${f.title}</h3><p class="measure">${f.area} · ${f.measure}</p><p>${f.detail}</p></div>${pill(f.sev)}</div>`).join('')}</div>`;
 
 /* per-employee findings: own report uses AREAS; HSE case reports derive severities from that employee's top issue and score */
@@ -678,7 +717,7 @@ const reportBody = (who, own) => {
 };
 
 VIEWS.report = () => `
-  <div class="head"><div><h1>My ergonomic report</h1><p>Visible only to you and authorised Occupational Health – HSE staff.</p></div>
+  <div class="head"><div><h1>My ergonomic report</h1><p>Visible only to you and authorised Occupational Health – HSE staff. Ergonomic guidance, not a medical assessment. Never used for appraisal or HR decisions.</p></div>
   <div class="row"><button class="btn ghost" data-export="PDF">Export PDF</button><button class="btn blue" data-go="reminders">${ic('bell',18)} Set up reminders</button></div></div>
   ${reportBody({score:58,cls:'High',date:'Nov 4'},true)}`;
 BIND.report = v => v.querySelectorAll('[data-rec]').forEach(c=>c.onchange=()=>{ c.checked?S.recsDone.add(c.dataset.rec):S.recsDone.delete(c.dataset.rec); render(); });
@@ -734,6 +773,74 @@ function showReminder(kind){
   root.querySelector('#n-x').onclick=()=>root.innerHTML='';
   root.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{root.innerHTML='';toast(b.dataset.n);});
 }
+
+/* ---------- Employee: My data (G1, G2) ---------- */
+VIEWS.mydata = () => {
+  const rows = [
+    ['Self-assessment answers','Show your setup recommendations','3 years or end of employment','12 answers'],
+    ['Pose keypoints','Measure joint angles for the AI check','3 years or end of employment','17 points × 3 checks'],
+    ['Results and recommendations','Your report and progress over time','3 years or end of employment','3 assessments'],
+    ['Reminder settings and responses','Run reminders; HSE sees totals only','12 months','Balanced profile'],
+    ['Photos and videos','Not stored. Deleted on your device right after analysis','Never kept','None']
+  ];
+  return `
+  <div class="head"><div><h1>My data</h1><p>What ErgoSense keeps about you, why, and for how long. You can download it, delete it, or switch off the AI check at any time.</p></div></div>
+  <div class="tbl"><table><thead><tr><th>Data</th><th>Why we keep it</th><th>How long</th><th>Current</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td style="color:var(--fg)">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="grid g2">
+    <div class="card stack"><div class="row between"><h2>AI posture analysis</h2><span class="pill ${S.aiAllowed?'Low':'Medium'}">${S.aiAllowed?'Consent given':'Consent withdrawn'}</span></div>
+      <p>${S.aiAllowed?'You agreed to AI analysis of your workstation photos on Nov 4, 2026. Withdrawing stops new AI checks straight away. Self-assessment, recommendations and reminders keep working.':'AI checks are switched off for you. Self-assessment, recommendations and reminders still work.'}</p>
+      <div class="row">${S.aiAllowed?`<button class="btn ghost" id="consent-off">Withdraw consent</button>`:`<button class="btn" id="consent-on">${ic('check',18)} Give consent again</button>`}</div>
+    </div>
+    <div class="card stack"><h2>Download or delete</h2>
+      <p>Download everything we hold about you, or ask us to delete it. Deletion also removes you from dashboard totals at the next refresh.</p>
+      ${S.delStep==='confirm'?`<div class="notice" role="alert">${ic('alert',20)}<p>This deletes your answers, keypoints, results and history. Your account and reminder settings stay. This cannot be undone.</p></div>
+        <div class="row"><button class="btn" id="del-yes" style="background:var(--high);border-color:var(--high);color:#fff">Delete my data</button><button class="btn ghost" id="del-no">Cancel</button></div>`
+      : S.delStep==='done'?`<div class="notice">${ic('check',20)}<p>Deletion requested on Nov 6. It completes within 24 hours and you will get a confirmation. In this demo your sample data stays so you can keep exploring.</p></div>`
+      :`<div class="row"><button class="btn ghost" id="dl-data">${ic('upload',18)} Download my data</button><button class="btn ghost" id="del-start">Delete my data</button></div>`}
+    </div>
+  </div>
+  <p class="muted" style="font-size:12px">Questions about your data: contact the Data Protection Officer through the Occupational Health – HSE team.</p>`;
+};
+BIND.mydata = v => {
+  const on=(id,f)=>{const b=v.querySelector('#'+id); if(b) b.onclick=f;};
+  on('consent-off',()=>{S.aiAllowed=false;S.consent=false;logAudit('Withdrew AI consent','e1043 · AI capture disabled');toast('Consent withdrawn. AI checks are off; everything else still works.');render();});
+  on('consent-on',()=>{S.aiAllowed=true;logAudit('Gave AI consent','e1043');toast('Consent given. You can run an AI posture check again.');render();});
+  on('dl-data',()=>{logAudit('Exported own data','e1043 · JSON and PDF summary');toast('In the live product your data downloads as JSON and a PDF summary. Export logged.');});
+  on('del-start',()=>{S.delStep='confirm';render();});
+  on('del-no',()=>{S.delStep=null;render();});
+  on('del-yes',()=>{S.delStep='done';logAudit('Requested data deletion','e1043 · answers, keypoints, results');render();});
+};
+
+/* ---------- HSE: specialist reviews (G3) ---------- */
+VIEWS.reviews = () => `
+  <div class="head"><div><h1>Specialist reviews</h1><p>Employees who asked an Occupational Health specialist to check their AI result. Confirm the result or correct the risk class; the employee is notified either way.</p></div></div>
+  <div class="grid g3">
+    <div class="card kpi"><div class="label">Waiting</div><div class="v num">${REVIEWS.filter(r=>r.status!=='Resolved').length}</div><div class="d">Target: resolved within 3 working days</div></div>
+    <div class="card kpi"><div class="label">Resolved</div><div class="v num">${REVIEWS.filter(r=>r.status==='Resolved').length+9}</div><div class="d">Since the pilot started</div></div>
+    <div class="card kpi"><div class="label">Results corrected</div><div class="v num">4</div><div class="d">Feeds the AI accuracy review</div></div>
+  </div>
+  <div class="stack" style="gap:16px">${REVIEWS.map(r=>`
+    <div class="card stack">
+      <div class="row between"><div><h3>${r.name}</h3><p class="measure">${r.dept} · requested ${r.date} · ${r.area}</p></div><span class="pill ${r.status==='Resolved'?'Low':r.status==='In review'?'Info':'Medium'}">${r.status}</span></div>
+      <p style="color:var(--fg)">“${esc(r.comment)}”</p>
+      ${r.status==='Resolved'?`<p class="muted">${esc(r.outcome)}</p>`:`
+      <div class="row" style="gap:12px;align-items:flex-end">
+        <label class="field"><span>Decision</span><select id="dec-${r.id}"><option value="keep">Confirm AI result (${r.cls})</option><option value="Medium">Correct to Medium risk</option><option value="Low">Correct to Low risk</option></select></label>
+        <button class="btn sm" data-resolve="${r.id}">Resolve and notify</button>
+        <a class="link" href="#case-${r.emp}">Open report ${ic('arrow',14)}</a>
+      </div>`}
+    </div>`).join('')}
+  </div>`;
+BIND.reviews = v => v.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=()=>{
+  const r = REVIEWS.find(x=>x.id===b.dataset.resolve), d = v.querySelector('#dec-'+r.id).value;
+  r.status='Resolved';
+  r.outcome = d==='keep' ? `Reviewed by ${USERS.hse.name} on Nov 6: AI result confirmed (${r.cls} risk).` : `Reviewed by ${USERS.hse.name} on Nov 6: corrected from ${r.cls} to ${d} risk.`;
+  if(r.emp==='e1043' && S.review){ S.review.status='Resolved'; S.review.outcome=r.outcome; }
+  logAudit('Resolved specialist review', `${r.emp} · ${d==='keep'?'confirmed':'corrected to '+d}`);
+  toast(`${r.name} has been notified.`); render();
+});
 
 /* ---------- HSE ---------- */
 function filtered(){ return DEPTS.filter(d=>(S.dept==='All'||d.name===S.dept)&&(S.entity==='All'||d.entity===S.entity)); }
@@ -870,6 +977,7 @@ VIEWS.access = () => {
       <label class="field"><span>Default reminder profile</span><select id="p-prof"><option>Balanced</option><option>Light</option><option>Active</option></select></label>
       <label class="field"><span>Smallest group shown in dashboards</span><select id="p-min">${['5','10'].map(n=>`<option value="${n}" ${(S.minGroup||'5')===n?'selected':''}>${n} employees</option>`).join('')}</select></label>
       <label class="field"><span>Raw photos and videos</span><select id="p-raw" disabled><option>Deleted right after analysis (fixed)</option></select></label>
+      <label class="field"><span>AI analysis</span><select id="p-ai"><option value="on" ${S.aiSuspended?'':'selected'}>Active</option><option value="off" ${S.aiSuspended?'selected':''}>Suspended (self-assessment only)</option></select></label>
       <label class="field"><span>AI capture input</span><select id="p-cap"><option>Photo and video</option><option>Photo only</option><option>Self-assessment only</option></select></label>
       <div class="field"><span>Test the rule</span><a class="link" href="#case-e1043">Open an individual report as Admin ${ic('arrow',14)}</a></div>
       <label class="field"><span>Data hosting region</span><select id="p-reg"><option>Client-approved region</option></select></label>
@@ -879,6 +987,8 @@ VIEWS.access = () => {
 };
 BIND.access = v => v.querySelector('#save-pol').onclick = () => {
   S.minGroup = v.querySelector('#p-min').value;
+  const ai = v.querySelector('#p-ai').value==='off';
+  if(ai!==S.aiSuspended){ S.aiSuspended=ai; logAudit(ai?'Suspended AI analysis':'Resumed AI analysis','All employees · self-assessment stays available'); }
   logAudit('Saved organisation policies', `Re-assessment ${v.querySelector('#p-int').value.toLowerCase()} · minimum group ${S.minGroup}`);
   toast('Policies saved and logged.');
 };
