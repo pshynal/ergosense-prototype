@@ -14,7 +14,8 @@
   --bg:#ffffff; --surface:#ffffff; --tint:#EEF5FF; --tint-2:#D9E9FF;
   --fg:#141A1D; --body:#37464F; --muted:#6B767D; --rule:#DCDFE0;
   --accent:#2979FF; --accent-hover:#1A6EFF; --btn:#222C31; --btn-hover:#141A1D; --on-btn:#ffffff;
-  --high:#D93A2B; --high-bg:#FDECEA; --med:#B26A00; --med-bg:#FFF4CC; --low:#2E7D32; --low-bg:#E8F5E9;
+  --high:#B3261E; --high-bg:#FDECEA; --med:#7A4A00; --med-bg:#FFF4CC; --low:#1E6B24; --low-bg:#E8F5E9;
+  --on-accent:#ffffff; --info:#1757C2;
   --figure:#37464F; --scrim:rgba(20,26,29,.45);
   --display:"Poppins",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   --text:"Poppins",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -26,15 +27,19 @@
   --fg:#EEF2F4; --body:#C3CCD1; --muted:#8C979D; --rule:#2A353B;
   --accent:#5C9BFF; --accent-hover:#7DB0FF; --btn:#EEF2F4; --btn-hover:#ffffff; --on-btn:#141A1D;
   --high:#FF7A6B; --high-bg:#3A1C19; --med:#F2B54A; --med-bg:#3A2E12; --low:#6FCF76; --low-bg:#173020;
+  --on-accent:#0F1518; --info:#7DB0FF;
   --figure:#C3CCD1; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F1518; --surface:#141C20; --tint:#162334; --tint-2:#1C2E47;
   --fg:#EEF2F4; --body:#C3CCD1; --muted:#8C979D; --rule:#2A353B;
   --accent:#5C9BFF; --accent-hover:#7DB0FF; --btn:#EEF2F4; --btn-hover:#ffffff; --on-btn:#141A1D;
   --high:#FF7A6B; --high-bg:#3A1C19; --med:#F2B54A; --med-bg:#3A2E12; --low:#6FCF76; --low-bg:#173020;
+  --on-accent:#0F1518; --info:#7DB0FF;
   --figure:#C3CCD1; --scrim:rgba(0,0,0,.6); color-scheme:dark}
 
 *{box-sizing:border-box}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+label:has(+ .sr-only:focus-visible){outline:1px solid var(--accent);outline-offset:2px}
 html,body{height:100%}
 body{background:var(--bg);color:var(--body);font:400 14px/1.857 var(--text)}
 h1,h2,h3,h4{color:var(--fg);font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
@@ -91,7 +96,7 @@ button,select,input{font:inherit;color:inherit}
 .between{justify-content:space-between}
 .btn{display:inline-flex;align-items:center;gap:8px;background:var(--btn);color:var(--on-btn);border:1px solid var(--btn);padding:11px 20px;font:500 14px/1.4 var(--text);cursor:pointer;transition:background var(--ease),border-color var(--ease)}
 .btn:hover{background:var(--btn-hover);border-color:var(--btn-hover)}
-.btn.blue{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.blue{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn.blue:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 .btn.ghost{background:transparent;color:var(--fg);border-color:var(--fg)}
 .btn.ghost:hover{background:var(--tint)}
@@ -104,7 +109,7 @@ button,select,input{font:inherit;color:inherit}
 .High{color:var(--high);background:var(--high-bg)}
 .Medium{color:var(--med);background:var(--med-bg)}
 .Low{color:var(--low);background:var(--low-bg)}
-.Info{color:var(--accent);background:var(--tint)}
+.Info{color:var(--info);background:var(--tint)}
 .kpi .v{font:300 40px/1.1 var(--display);color:var(--fg);letter-spacing:-.03em}
 .kpi .v small{font-size:16px;color:var(--muted);letter-spacing:0;margin-left:4px}
 .kpi .d{font:400 12px/1.5 var(--ui);color:var(--muted);margin-top:6px}
@@ -394,7 +399,7 @@ function current(){
 }
 function render(){
   const r = current();
-  const role = r==='case' ? 'hse' : r==='signin' ? S.role : ROUTES[r].role;
+  const role = r==='case' ? (S.role==='admin'?'admin':'hse') : r==='signin' ? S.role : ROUTES[r].role;
   S.role = role;
   document.querySelector('.app').classList.toggle('signin', r==='signin');
   if(r==='case') S.caseId = location.hash.slice(6);
@@ -408,9 +413,18 @@ function render(){
     .map(([k,v])=>`<a href="#${k}" ${k===active?'aria-current="page"':''}>${ic(v.icon)}<span>${v.label}</span></a>`).join('');
   document.getElementById('crumb').textContent = r==='case' ? 'High-risk follow-up / Individual report' : ROUTES[r].label;
   const view = document.getElementById('view');
+  const key = location.hash.slice(1) || r, changed = key !== S.lastRoute;
+  if(changed && S.timer){ clearInterval(S.timer); S.timer=null; S.analyzing=false; }
+  const focusId = changed ? null : document.activeElement && document.activeElement.id;
   view.innerHTML = VIEWS[r]();
   (BIND[r]||(()=>{}))(view);
-  window.scrollTo(0,0);
+  if(changed){ window.scrollTo(0,0); if(r==='case') logAudit(S.role==='admin'?'Denied: individual report access':'Viewed individual report', `${S.caseId} · ${(CASES.find(c=>c.id===S.caseId)||{}).name||''}`); }
+  else if(focusId){ const el=document.getElementById(focusId); if(el) el.focus({preventScroll:true}); }
+  S.lastRoute = key;
+}
+function logAudit(action, details){
+  const d = new Date(), t = d.toLocaleString('en-US',{month:'short',day:'numeric'})+', '+d.toTimeString().slice(0,5);
+  AUDIT.unshift([t, USERS[S.role].name, action, details]);
 }
 window.addEventListener('hashchange',render);
 document.querySelectorAll('.roles button').forEach(b=>b.addEventListener('click',()=>go(FIRST[b.dataset.role])));
@@ -578,7 +592,7 @@ VIEWS.capture = () => `
       <div class="drop" id="drop">${S.photo?`<img src="${S.photo}" alt="Uploaded workstation photo">`:`<div style="text-align:center;padding:24px" class="stack"><div style="color:var(--accent);display:flex;justify-content:center">${ic('camera',36)}</div><p style="color:var(--fg)">Side view, whole body in frame</p><p class="muted" style="font-size:12px">JPG, PNG or a 10-second video · webcam capture in the desktop agent</p></div>`}<div class="frame-guide"><span>Keep head, hips and feet inside</span></div></div>
       <div class="row">
         <label class="btn ghost sm" for="photo-in" style="cursor:pointer">${ic('upload',16)} Upload photo</label>
-        <input type="file" id="photo-in" accept="image/*" hidden>
+        <input type="file" id="photo-in" accept="image/*" class="sr-only">
         <button class="btn ghost sm" id="webcam">${ic('camera',16)} Use webcam</button>
         <button class="btn ghost sm" id="sample">Use sample photo</button>
       </div>
@@ -596,7 +610,7 @@ VIEWS.capture = () => `
       </ul>
       <div class="progress" id="prog" ${S.analyzing?'':'hidden'}><i></i></div>
       <p class="muted" id="prog-t" ${S.analyzing?'':'hidden'}>Detecting keypoints…</p>
-      <button class="btn blue" id="analyze" ${S.consent&&S.photo?'':'disabled'}>${ic('arrow',18)} Analyse my posture</button>
+      <button class="btn blue" id="analyze" ${S.consent&&S.photo&&!S.analyzing?'':'disabled'}>${ic('arrow',18)} Analyse my posture</button>
       <p class="muted" style="font-size:12px">${S.consent?(S.photo?'Ready.':'Add a photo to continue.'):'Accept the privacy notice to continue.'}</p>
     </div>
   </div>`;
@@ -609,11 +623,14 @@ BIND.capture = v => {
     S.photo = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg); render();
   };
   v.querySelector('#analyze').onclick = () => {
+    if(S.analyzing) return;
     S.analyzing = true; render();
-    const bar = document.querySelector('#prog i'), t = document.getElementById('prog-t');
+    document.getElementById('analyze').disabled = true;
     const msgs = ['Detecting keypoints…','Measuring joint angles…','Locating monitor and keyboard…','Scoring against ROSA rules…'];
-    let k=0; const tick = setInterval(()=>{ k++; if(bar) bar.style.width = (k*25)+'%'; if(t) t.textContent = msgs[Math.min(k,3)];
-      if(k>=4){ clearInterval(tick); S.analyzing=false; S.analyzed=true; go('results'); } }, 550);
+    let k=0; S.timer = setInterval(()=>{ k++;
+      const bar = document.querySelector('#prog i'), t = document.getElementById('prog-t');
+      if(bar) bar.style.width = (k*25)+'%'; if(t) t.textContent = msgs[Math.min(k,3)];
+      if(k>=4){ clearInterval(S.timer); S.timer=null; S.analyzing=false; S.analyzed=true; if(current()==='capture') go('results'); } }, 550);
   };
 };
 
@@ -630,18 +647,35 @@ VIEWS.results = () => `
   </div>
   <div class="card"><h2>Findings by area</h2>${AREAS.map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div class="stack" style="gap:4px"><h3>${f.title}</h3><p class="measure">${f.area} · ${f.measure}</p><p>${f.detail}</p></div>${pill(f.sev)}</div>`).join('')}</div>`;
 
-const reportBody = (who, own) => `
+/* per-employee findings: own report uses AREAS; HSE case reports derive severities from that employee's top issue and score */
+const ISSUE_AREA = {'Monitor too low':['Monitor height and distance','Neck'],'Forward head posture':['Sitting posture','Neck'],'No lumbar support used':['Chair and desk','Lower back'],'Wrist extension':['Keyboard and mouse','Wrists'],'Mouse out of reach':['Keyboard and mouse','Shoulders'],'Screen glare':['Monitor height and distance','Eyes']};
+const clsFor = s => s<60?'High':s<75?'Medium':'Low';
+function findingsFor(who, own){
+  if(own) return AREAS;
+  const [area] = ISSUE_AREA[who.issue]||[];
+  return AREAS.map(f=>({...f, sev: f.area===area ? who.cls : (who.score<55 ? 'Medium' : 'Low'), measure: f.area===area ? `Top issue: ${who.issue.toLowerCase()}` : 'Within or near recommended range'}));
+}
+function bodyFor(who, own){
+  if(own) return [['Neck','High'],['Upper back','High'],['Wrists','Medium'],['Lower back','Low']];
+  const top = (ISSUE_AREA[who.issue]||[])[1]||'Neck';
+  return [[top,who.cls], ...['Neck','Lower back','Shoulders','Wrists'].filter(a=>a!==top).slice(0,3).map(a=>[a, who.score<55?'Medium':'Low'])];
+}
+const reportBody = (who, own) => {
+  const done = own ? S.recsDone : new Set(who.status==='Resolved' ? RECS.map(r=>r.id) : who.status==='Contacted' ? ['r1'] : []);
+  const hist = HISTORY.map((h,i)=>{ const s = own ? h.score : Math.max(30, who.score-[0,6,9][i]); return {...h, score:s, cls: own ? h.cls : clsFor(s)}; });
+  return `
   <div class="grid g3">
     <div class="card stack"><div class="label">Risk classification</div><div class="score-ring">${scoreDial(who.score,who.cls)}<div class="stack" style="gap:6px">${pill(who.cls)}<p class="muted" style="font-size:12px">Assessed ${who.date}, 2026</p></div></div></div>
-    <div class="card stack"><div class="label">High-risk body areas</div>${[['Neck','High'],['Upper back','High'],['Wrists','Medium'],['Lower back','Low']].map(([a,c])=>`<div class="row between"><span style="color:var(--fg)">${a}</span>${pill(c)}</div>`).join('')}</div>
-    <div class="card stack"><div class="label">History</div>${HISTORY.map(h=>`<div class="row between"><span><span style="color:var(--fg)">${h.d}</span><br><span class="muted" style="font-size:12px">${h.type}</span></span><span class="num" style="color:var(--fg);font-weight:500">${own?h.score:(h.score-(58-who.score))}</span></div>`).join('')}</div>
+    <div class="card stack"><div class="label">High-risk body areas</div>${bodyFor(who,own).map(([a,c])=>`<div class="row between"><span style="color:var(--fg)">${a}</span>${pill(c)}</div>`).join('')}</div>
+    <div class="card stack"><div class="label">History</div>${hist.map(h=>`<div class="row between"><span><span style="color:var(--fg)">${h.d}</span><br><span class="muted" style="font-size:12px">${h.type}</span></span><span class="row" style="gap:8px;flex-wrap:nowrap"><span class="num" style="color:var(--fg);font-weight:500">${h.score}</span><span class="pill ${h.cls}">${h.cls}</span></span></div>`).join('')}</div>
   </div>
   <div class="grid g2">
-    <div class="card"><h2>AI findings</h2>${AREAS.map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div><h3>${f.title}</h3><p class="measure">${f.measure}</p></div>${pill(f.sev)}</div>`).join('')}</div>
-    <div class="card"><div class="row between"><h2>Corrective recommendations</h2><span class="muted num">${S.recsDone.size} of ${RECS.length} done</span></div>
-      ${RECS.map(r=>`<div class="rec ${S.recsDone.has(r.id)?'done':''}"><input type="checkbox" id="rec-${r.id}" data-rec="${r.id}" ${S.recsDone.has(r.id)?'checked':''} ${own?'':'disabled'} aria-label="Mark as done"><div><p style="color:var(--fg)">${r.text}</p><p class="muted" style="font-size:12px">${r.area} · ${r.how}</p></div></div>`).join('')}
+    <div class="card"><h2>AI findings</h2>${findingsFor(who,own).map(f=>`<div class="finding"><span class="sev ${f.sev}"></span><div><h3>${own?f.title:f.area}</h3><p class="measure">${f.measure}</p></div>${pill(f.sev)}</div>`).join('')}</div>
+    <div class="card"><div class="row between"><h2>Corrective recommendations</h2><span class="muted num">${done.size} of ${RECS.length} done</span></div>
+      ${RECS.map(r=>`<div class="rec ${done.has(r.id)?'done':''}"><input type="checkbox" id="rec-${r.id}" data-rec="${r.id}" ${done.has(r.id)?'checked':''} ${own?'':'disabled'} aria-label="Mark as done"><div><p style="color:var(--fg)">${r.text}</p><p class="muted" style="font-size:12px">${r.area} · ${r.how}</p></div></div>`).join('')}
     </div>
   </div>`;
+};
 
 VIEWS.report = () => `
   <div class="head"><div><h1>My ergonomic report</h1><p>Visible only to you and authorised Occupational Health – HSE staff.</p></div>
@@ -707,19 +741,21 @@ VIEWS.hse = () => {
   const pf = {'Pilot to date':1,'Last 30 days':.28,'Q4 2026':.46}[S.period];
   const ds = filtered(), emp = ds.reduce((a,d)=>a+d.emp,0), as = Math.round(ds.reduce((a,d)=>a+d.assessed,0)*pf), hi = Math.round(ds.reduce((a,d)=>a+d.high,0)*pf);
   const share = as/412 || 0;
-  const avg = ds.length ? Math.round(ds.reduce((a,d)=>a+d.trend.at(-1)*d.assessed,0)/Math.max(as,1)) : 0;
-  const trend = MONTHS.map((_,i)=>ds.length?Math.round(ds.reduce((a,d)=>a+d.trend[i]*d.assessed,0)/Math.max(as,1)):0);
+  const asRaw = ds.reduce((a,d)=>a+d.assessed,0);
+  const avg = ds.length ? Math.round(ds.reduce((a,d)=>a+d.trend.at(-1)*d.assessed,0)/Math.max(asRaw,1)) : 0;
+  const trend = MONTHS.map((_,i)=>ds.length?Math.round(ds.reduce((a,d)=>a+d.trend[i]*d.assessed,0)/Math.max(asRaw,1)):0);
   const maxI = ISSUES[0][1];
-  const small = as>0 && as<5;
-  return `
-  <div class="head"><div><h1>Ergonomics overview</h1><p>Aggregated, de-identified data for the pilot cohort. Groups under 5 people are hidden to protect privacy.</p></div>
+  const minGroup = parseInt(S.minGroup||'5',10);
+  const top = `
+  <div class="head"><div><h1>Ergonomics overview</h1><p>Aggregated, de-identified data for the pilot cohort. Groups under ${minGroup} people are hidden to protect privacy.</p></div>
   <div class="row"><button class="btn ghost" data-export="PDF">Export PDF</button><button class="btn ghost" data-export="Excel">Export Excel</button></div></div>
   <div class="row" style="gap:16px">
     <label class="field"><span>Entity</span><select id="f-entity"><option>All</option>${[...new Set(DEPTS.map(d=>d.entity))].map(e=>`<option ${S.entity===e?'selected':''}>${e}</option>`).join('')}</select></label>
     <label class="field"><span>Department</span><select id="f-dept"><option>All</option>${DEPTS.map(d=>`<option ${S.dept===d.name?'selected':''}>${d.name}</option>`).join('')}</select></label>
     <label class="field"><span>Period</span><select id="f-period">${['Pilot to date','Last 30 days','Q4 2026'].map(p=>`<option ${S.period===p?'selected':''}>${p}</option>`).join('')}</select></label>
-  </div>
-  ${small?`<div class="notice">${ic('info',20)}<p>This selection has fewer than 5 assessed employees, so results are hidden.</p></div>`:''}
+  </div>`;
+  if(as < minGroup) return top + `<div class="notice">${ic('info',20)}<p>This selection has ${as?'fewer than '+minGroup:'no'} assessed employees, so results are hidden to protect privacy. Widen the filters to see data.</p></div>`;
+  return top + `
   <div class="grid g4">
     <div class="card kpi"><div class="label">Assessments conducted</div><div class="v num">${as}</div><div class="d">${emp?Math.round(as/emp*100):0}% of ${emp} employees in scope</div></div>
     <div class="card kpi"><div class="label">High-risk employees</div><div class="v num" style="color:var(--high)">${hi}</div><div class="d">${as?Math.round(hi/as*100):0}% of assessed · <button class="link" data-go="cases" style="font-size:12px">Follow up</button></div></div>
@@ -739,7 +775,7 @@ VIEWS.hse = () => {
 };
 BIND.hse = v => {
   v.querySelector('#f-entity').onchange=e=>{S.entity=e.target.value; if(S.dept!=='All'&&DEPTS.find(d=>d.name===S.dept).entity!==S.entity&&S.entity!=='All') S.dept='All'; render();};
-  v.querySelector('#f-dept').onchange=e=>{S.dept=e.target.value;render();};
+  v.querySelector('#f-dept').onchange=e=>{S.dept=e.target.value; if(S.dept!=='All') S.entity=DEPTS.find(d=>d.name===S.dept).entity; render();};
   v.querySelector('#f-period').onchange=e=>{S.period=e.target.value;render();};
 };
 
@@ -770,13 +806,16 @@ BIND.cases = v => {
 };
 
 VIEWS.case = () => {
+  if(S.role==='admin') return `
+  <div class="head"><div><h1>Access denied</h1><p>Admins manage the platform but cannot open individual ergonomic reports. Only the employee and authorised OH – HSE staff can. This attempt has been recorded in the audit log.</p></div></div>
+  <div class="row"><button class="btn" data-go="audit">${ic('list',18)} Open audit log</button><button class="btn ghost" data-go="access">See roles &amp; policies</button></div>`;
   const c = CASES.find(x=>x.id===S.caseId) || CASES[0];
   return `
   <div class="head"><div><button class="link" data-go="cases" style="margin-bottom:8px">← High-risk follow-up</button><h1>${c.name}</h1><p>${c.dept} · ${c.id.toUpperCase()} · Your access to this report has been recorded in the audit log.</p></div>
   <div class="row"><label class="field"><span>Follow-up status</span><select id="c-status">${['New','Contacted','Resolved'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}</select></label><button class="btn ghost" data-export="PDF">Export PDF</button></div></div>
   ${reportBody(c,false)}`;
 };
-BIND.case = v => { v.querySelector('#c-status').onchange = e => { const c = CASES.find(x=>x.id===S.caseId); if(c){c.status=e.target.value; toast(`Status set to ${c.status}.`);} }; };
+BIND.case = v => { if(!v.querySelector('#c-status')) return; v.querySelector('#c-status').onchange = e => { const c = CASES.find(x=>x.id===S.caseId); if(c){c.status=e.target.value; toast(`Status set to ${c.status}.`);} }; };
 
 VIEWS.pilot = () => {
   const K = [['Pilot employees assessed','86%',86,80,'≥ 80%','Low'],['Average time per assessment','7 min 40 s',77,100,'≤ 10 min','Low'],['Moved to a lower risk class','37%',37,40,'≥ 40%','Medium'],['Reminder engagement','54%',54,50,'≥ 50%','Low'],['Employee satisfaction','4.3 / 5',86,80,'≥ 4 / 5','Low']];
@@ -800,7 +839,7 @@ VIEWS.users = () => `
   <div class="grid g-main">
     <div class="card stack"><div class="row between"><h2>Import from HR</h2><span class="muted" style="font-size:12px">Last sync Nov 5, 16:03</span></div>
       <p>Upload a CSV with <code>email, department, entity, role, cohort</code>. Existing users are updated, nobody is deleted.</p>
-      <div class="row"><label class="btn ghost sm" for="csv-in" style="cursor:pointer">${ic('upload',16)} Choose CSV file</label><input type="file" id="csv-in" accept=".csv,text/csv" hidden><button class="btn sm" id="csv-sample">Use sample file</button></div>
+      <div class="row"><label class="btn ghost sm" for="csv-in" style="cursor:pointer">${ic('upload',16)} Choose CSV file</label><input type="file" id="csv-in" accept=".csv,text/csv" class="sr-only"><button class="btn sm" id="csv-sample">Use sample file</button></div>
       ${S.imported?`<div class="notice">${ic('check',20)}<p>${esc(S.imported)}</p></div>`:''}
     </div>
     <div class="card stack"><div class="label">Pilot cohort</div><div class="kpi"><div class="v num">480<small>of 500 seats</small></div></div><div class="bar"><i style="width:96%"></i></div><p class="muted" style="font-size:12px">Pilot A: 260 · Pilot B: 220</p></div>
@@ -811,12 +850,16 @@ VIEWS.users = () => `
 BIND.users = v => {
   v.querySelector('#csv-in').onchange = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const n=r.result.split(/\r?\n/).filter(l=>l.trim()).length-1; S.imported=`${f.name}: ${Math.max(n,0)} rows read. In the live product they are checked and applied after you confirm.`; render(); }; r.readAsText(f); };
   v.querySelector('#csv-sample').onclick = () => { S.imported = 'hr_export_nov.csv: 38 rows read · 36 unchanged · 2 department changes. Applied.'; render(); };
-  v.querySelectorAll('[data-u]').forEach(s=>s.onchange=()=>{ ADMIN_USERS[s.dataset.u][4]=s.value; toast(`${ADMIN_USERS[s.dataset.u][0]} is now ${s.value}. Change logged.`); });
-  v.querySelectorAll('[data-cohort]').forEach(s=>s.onchange=()=>{ ADMIN_USERS[s.dataset.cohort][5]=s.value; toast(s.value==='—'?`${ADMIN_USERS[s.dataset.cohort][0]} removed from the pilot.`:`${ADMIN_USERS[s.dataset.cohort][0]} added to ${s.value}.`); });
+  v.querySelectorAll('[data-u]').forEach(s=>s.onchange=()=>{
+    const u = ADMIN_USERS[s.dataset.u];
+    if(u[0]===USERS.admin.name){ s.value=u[4]; toast('You cannot change your own role. Ask another admin.'); return; }
+    if(s.value==='HSE / OH'){ s.value=u[4]; toast('HSE / OH access needs approval from the OH – HSE manager. Request sent.'); logAudit('Requested HSE / OH access', `${u[1]} · pending OH – HSE approval`); return; }
+    const old=u[4]; u[4]=s.value; logAudit('Changed role', `${u[1]}: ${old} → ${s.value}`); toast(`${u[0]} is now ${s.value}. Change logged.`); });
+  v.querySelectorAll('[data-cohort]').forEach(s=>s.onchange=()=>{ const u=ADMIN_USERS[s.dataset.cohort]; u[5]=s.value; logAudit('Changed pilot cohort', `${u[1]} → ${s.value==='—'?'none':s.value}`); toast(s.value==='—'?`${u[0]} removed from the pilot.`:`${u[0]} added to ${s.value}.`); });
 };
 
 VIEWS.access = () => {
-  const M = [['Own report and reminders','yes','yes','yes'],['Individual reports of others','no','yes','no'],['Aggregated dashboards','no','yes','yes'],['Export PDF / Excel','Own','yes','no'],['Manage users and roles','no','no','yes'],['Organisation policies','no','Propose','yes'],['View audit log','no','Own actions','yes']];
+  const M = [['Own report and reminders','yes','yes','yes'],['Individual reports of others','no','yes','no'],['Aggregated dashboards','no','yes','yes'],['Export PDF / Excel','Own','yes','Audit log only'],['Manage users and roles','no','no','yes'],['Organisation policies','no','Propose','yes'],['View audit log','no','Own actions','yes']];
   const cell = x => x==='yes'?'<span class="yes">Yes</span>':x==='no'?'<span class="no">—</span>':`<span style="color:var(--fg)">${x}</span>`;
   return `
   <div class="head"><div><h1>Roles &amp; policies</h1><p>Admins manage the platform but cannot open individual ergonomic reports. Only the employee and authorised OH – HSE staff can.</p></div></div>
@@ -825,15 +868,20 @@ VIEWS.access = () => {
     <div class="grid g3" style="margin-top:16px">
       <label class="field"><span>Re-assessment interval</span><select id="p-int"><option>Every 90 days</option><option>Every 180 days</option><option>Every 12 months</option></select></label>
       <label class="field"><span>Default reminder profile</span><select id="p-prof"><option>Balanced</option><option>Light</option><option>Active</option></select></label>
-      <label class="field"><span>Smallest group shown in dashboards</span><select id="p-min"><option>5 employees</option><option>10 employees</option></select></label>
-      <label class="field"><span>Raw photos and videos</span><select id="p-raw"><option>Delete after analysis</option><option>Keep 30 days</option></select></label>
+      <label class="field"><span>Smallest group shown in dashboards</span><select id="p-min">${['5','10'].map(n=>`<option value="${n}" ${(S.minGroup||'5')===n?'selected':''}>${n} employees</option>`).join('')}</select></label>
+      <label class="field"><span>Raw photos and videos</span><select id="p-raw" disabled><option>Deleted right after analysis (fixed)</option></select></label>
       <label class="field"><span>AI capture input</span><select id="p-cap"><option>Photo and video</option><option>Photo only</option><option>Self-assessment only</option></select></label>
+      <div class="field"><span>Test the rule</span><a class="link" href="#case-e1043">Open an individual report as Admin ${ic('arrow',14)}</a></div>
       <label class="field"><span>Data hosting region</span><select id="p-reg"><option>Client-approved region</option></select></label>
     </div>
     <div class="row" style="margin-top:20px"><button class="btn" id="save-pol">Save policies</button><span class="muted" style="font-size:12px">Encryption at rest (AES-256) and in transit (TLS 1.2+) is always on.</span></div>
   </div>`;
 };
-BIND.access = v => v.querySelector('#save-pol').onclick = () => toast('Policies saved and logged.');
+BIND.access = v => v.querySelector('#save-pol').onclick = () => {
+  S.minGroup = v.querySelector('#p-min').value;
+  logAudit('Saved organisation policies', `Re-assessment ${v.querySelector('#p-int').value.toLowerCase()} · minimum group ${S.minGroup}`);
+  toast('Policies saved and logged.');
+};
 
 VIEWS.audit = () => `
   <div class="head"><div><h1>Audit log</h1><p>Every access to an individual report, export, role change and data deletion is recorded and kept for 2 years.</p></div><button class="btn ghost" data-export="CSV">Export log</button></div>
@@ -857,7 +905,7 @@ BIND.signin = v => {
 /* global clicks */
 document.addEventListener('click', e => {
   const g = e.target.closest('[data-go]'); if(g){ e.preventDefault(); go(g.dataset.go); return; }
-  const x = e.target.closest('[data-export]'); if(x){ toast(`In the live product this downloads the ${x.dataset.export}.`); }
+  const x = e.target.closest('[data-export]'); if(x){ logAudit('Exported', `${x.dataset.export} · ${(ROUTES[current()]||{label:'Individual report'}).label}`); toast(`In the live product this downloads the ${x.dataset.export}. Export logged.`); }
 });
 
 render();
