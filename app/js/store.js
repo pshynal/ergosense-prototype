@@ -36,9 +36,11 @@ class SupabaseStore {
     const rows = must(await this.sb.from('settings').select('*'));
     return Object.fromEntries(rows.map(r => [r.key, r.value]));
   }
+  // Row-level security silently skips rows a user may not change, so an empty result means "not allowed".
   async saveSettings(patch) {
-    for (const [key, value] of Object.entries(patch)) must(await this.sb.from('settings').update({ value }).eq('key', key));
-    await this.log('Saved organisation policies', JSON.stringify(patch));
+    for (const [key, value] of Object.entries(patch)) {
+      if (!must(await this.sb.from('settings').update({ value }).eq('key', key).select()).length) throw new Error('Only admins can change policies');
+    }
   }
   async saveAssessment(a) {
     return must(await this.sb.from('assessments').insert({ ...a, user_id: this.profile.id }).select().single());
@@ -48,7 +50,6 @@ class SupabaseStore {
   }
   async requestReview(assessment_id, comment) {
     must(await this.sb.from('reviews').insert({ assessment_id, comment, user_id: this.profile.id }));
-    await this.log('Requested specialist review', assessment_id);
   }
   async myReviews() {
     return must(await this.sb.from('reviews').select('*').eq('user_id', this.profile.id).order('created_at', { ascending: false }));
@@ -61,7 +62,7 @@ class SupabaseStore {
   }
   async exportMyData() {
     const [assessments, reviews, reminders] = await Promise.all([this.myAssessments(), this.myReviews(), this.reminders()]);
-    await this.log('Exported own data', null);
+    must(await this.sb.rpc('log_my_export'));
     return { profile: this.profile, assessments, reviews, reminders, exported_at: new Date().toISOString() };
   }
   async deleteMyData() { must(await this.sb.rpc('delete_my_data')); }
@@ -79,9 +80,10 @@ class SupabaseStore {
   }
   async resolveReview(id, cls) { must(await this.sb.rpc('resolve_review', { p_review: id, p_class: cls })); }
   async profiles() { return must(await this.sb.from('profiles').select('*').order('full_name')); }
-  async setRole(id, role) { must(await this.sb.from('profiles').update({ role }).eq('id', id)); }
+  async setRole(id, role) {
+    if (!must(await this.sb.from('profiles').update({ role }).eq('id', id).select()).length) throw new Error('Only admins can change roles');
+  }
   async audit() { return must(await this.sb.from('audit_log').select('*').order('at', { ascending: false }).limit(200)); }
-  async log(action, details) { await this.sb.rpc('log_event', { p_action: action, p_details: details }); }
 }
 
 // ---------- Local demo store ----------
@@ -141,6 +143,9 @@ class LocalStore {
   async settings() { return { ...this.db.settings }; }
   async saveSettings(patch) {
     if (this.profile.role !== 'admin') throw new Error('Only admins can change policies');
+    if ('ai_suspended' in patch && typeof patch.ai_suspended !== 'boolean') throw new Error('ai_suspended must be true or false');
+    if ('min_group' in patch && !(Number.isInteger(patch.min_group) && patch.min_group >= 5)) throw new Error('min_group must be a number of at least 5');
+    if ('reassess_days' in patch && ![90, 180, 365].includes(patch.reassess_days)) throw new Error('reassess_days must be 90, 180 or 365');
     Object.assign(this.db.settings, patch); await this.log('Saved organisation policies', JSON.stringify(patch)); this.save();
   }
   async saveAssessment(a) {
@@ -167,30 +172,49 @@ class LocalStore {
   }
   async deleteMyData() {
     this.db.assessments = this.db.assessments.filter(a => a.user_id !== this.profile.id);
+    this.db.reviews = this.db.reviews.filter(r => r.user_id !== this.profile.id);
     await this.log('Deleted own assessment data', null); this.save();
   }
+  // Same privacy rules as hse_dashboard() in supabase/schema.sql: a selection is hidden when it has
+  // fewer than min_group people or differs from a wider view by fewer than min_group people.
   async dashboard(f) {
     if (!['hse', 'admin'].includes(this.profile.role)) throw new Error('Not allowed');
-    const min = Number(this.db.settings.min_group);
-    const scope = this.db.people.filter(p => p.role === 'employee' && (!f.entity || p.entity === f.entity) && (!f.department || p.department === f.department));
-    const ids = new Set(scope.map(p => p.id));
-    const since = f.days ? Date.now() - f.days * 864e5 : 0;
-    const latest = this.latestByUser(a => ids.has(a.user_id) && Date.parse(a.created_at) >= since);
-    const cls = a => a.corrected_class || a.risk_class;
-    const ok = latest.length >= min;
-    const issues = {};
-    latest.forEach(a => new Set((a.findings || []).filter(x => x.severity !== 'Low' && x.value !== null).map(x => x.label)).forEach(l => issues[l] = (issues[l] || 0) + 1));
-    const depts = {};
-    latest.forEach(a => { const p = this.person(a.user_id); const k = p.department; (depts[k] ||= { department: k, entity: p.entity, assessed: 0, high: 0, sum: 0 }); depts[k].assessed++; depts[k].sum += a.score; if (cls(a) === 'High') depts[k].high++; });
-    const dl = Object.values(depts);
+    if (f.days && ![30, 90].includes(f.days)) throw new Error('Period must be 30 or 90 days');
     await this.log('Viewed HSE dashboard', [f.entity, f.department, f.days].filter(Boolean).join(' · '));
+    const min = Math.max(5, Number(this.db.settings.min_group) || 5);
+    const withPerson = a => ({ ...a, p: this.person(a.user_id) });
+    const latestIn = days => this.latestByUser(a => !days || Date.parse(a.created_at) > Date.now() - days * 864e5).map(withPerson);
+    const inScope = a => (!f.entity || a.p.entity === f.entity) && (!f.department || a.p.department === f.department);
+    const all = latestIn(f.days), s = all.filter(inScope), n = s.length;
+    const close = wider => wider - n >= 1 && wider - n < min;
+    let hidden = n < min || close(all.length);
+    if (f.department) {
+      const ents = new Set(s.map(a => a.p.entity));
+      hidden ||= close(all.filter(a => ents.has(a.p.entity)).length);
+    }
+    if (f.days) hidden ||= close(latestIn(null).filter(inScope).length);
+    if (hidden) return { min_group: min, suppressed: true };
+
+    const cls = a => a.corrected_class || a.risk_class;
+    const depts = {};
+    s.forEach(a => { const k = `${a.p.department}|${a.p.entity}`; (depts[k] ||= { department: a.p.department, entity: a.p.entity, assessed: 0, high: 0, sum: 0 }); depts[k].assessed++; depts[k].sum += a.score; if (cls(a) === 'High') depts[k].high++; });
+    const dl = Object.values(depts);
+    const smallTotal = dl.filter(d => d.assessed < min).reduce((t, d) => t + d.assessed, 0);
+    let vis = dl.filter(d => d.assessed >= min);
+    if (smallTotal >= 1 && smallTotal < min && vis.length) {
+      const extra = vis.slice().sort((a, b) => a.assessed - b.assessed || a.department.localeCompare(b.department))[0];
+      vis = vis.filter(d => d !== extra);
+    }
+    const issues = {};
+    s.forEach(a => new Set((a.findings || []).filter(x => ['Medium', 'High'].includes(x.severity) && x.key !== 'notScored').map(x => x.label)).forEach(l => issues[l] = (issues[l] || 0) + 1));
     return {
-      min_group: min, employees: scope.length, assessed: latest.length, suppressed: !ok,
-      high: ok ? latest.filter(a => cls(a) === 'High').length : null,
-      avg_score: ok ? Math.round(latest.reduce((s, a) => s + a.score, 0) / latest.length) : null,
-      issues: ok ? Object.entries(issues).filter(([, n]) => n >= Math.min(min, 2)).map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n) : null,
-      departments: dl.filter(d => d.assessed >= min).map(d => ({ ...d, avg_score: Math.round(d.sum / d.assessed) })),
-      hidden_departments: dl.filter(d => d.assessed < min).length
+      min_group: min, suppressed: false,
+      employees: this.db.people.filter(p => (!f.entity || p.entity === f.entity) && (!f.department || p.department === f.department)).length,
+      assessed: n, high: s.filter(a => cls(a) === 'High').length,
+      avg_score: Math.round(s.reduce((t, a) => t + a.score, 0) / n),
+      issues: Object.entries(issues).filter(([, c]) => c >= min).map(([label, c]) => ({ label, n: c })).sort((a, b) => b.n - a.n),
+      departments: vis.map(d => ({ ...d, avg_score: Math.round(d.sum / d.assessed) })).sort((a, b) => a.department.localeCompare(b.department)),
+      hidden_departments: dl.length - vis.length
     };
   }
   // Latest AI check per person, or latest self-assessment if they have no AI check (same rule as the database).

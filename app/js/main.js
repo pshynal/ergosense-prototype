@@ -19,8 +19,11 @@ const P = {
   info: 'M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM10 9v4.5M10 6.5v.5'
 };
 const ic = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" aria-hidden="true"><path d="${P[n]}"/></svg>`;
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const pill = c => c ? `<span class="pill ${c}">${c} risk</span>` : '<span class="pill Info">Not scored</span>';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Risk levels come from stored data, so only known values reach class names and labels.
+const SEV = ['Low', 'Medium', 'High'];
+const sevOk = s => SEV.includes(s) ? s : 'Low';
+const pill = c => SEV.includes(c) ? `<span class="pill ${c}">${c} risk</span>` : '<span class="pill Info">Not scored</span>';
 const fmtDate = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const cls = a => a?.corrected_class || a?.risk_class;
 function toast(msg) {
@@ -173,7 +176,7 @@ VIEWS.home = async () => {
     <div class="card kpi"><div class="label">Next assessment</div><div class="v num" style="font-size:28px;line-height:1.6">${due ? fmtDate(due) : 'After your first'}</div><div class="d">Every ${S.settings.reassess_days || 90} days</div></div>
   </div>
   ${last ? `<div class="card"><div class="row between"><h2>Latest findings</h2><button class="link" data-open="${last.id}">Open result ${ic('arrow', 16)}</button></div>
-    ${(last.findings || []).filter(f => f.severity !== 'Low').slice(0, 4).map(f => `<div class="finding"><span class="sev ${f.severity}"></span><div><h3>${esc(f.label)}</h3><p class="measure">${esc(f.area || '')}${f.value !== null && f.value !== undefined ? ` · ${f.value}${f.unit || ''}` : ''}</p></div>${pill(f.severity)}</div>`).join('') || '<p class="muted" style="padding:12px 0">No medium or high findings in this result.</p>'}</div>` : ''}`;
+    ${(last.findings || []).filter(f => f.severity !== 'Low').slice(0, 4).map(f => `<div class="finding"><span class="sev ${sevOk(f.severity)}"></span><div><h3>${esc(f.label)}</h3><p class="measure">${esc(f.area || '')}${f.value !== null && f.value !== undefined ? ` · ${esc(f.value)}${esc(f.unit || '')}` : ''}</p></div>${pill(f.severity)}</div>`).join('') || '<p class="muted" style="padding:12px 0">No medium or high findings in this result.</p>'}</div>` : ''}`;
 };
 
 VIEWS.check = async () => {
@@ -228,12 +231,15 @@ VIEWS.capture = async () => {
   <div class="head"><div><h1>AI posture check</h1><p>Use one photo taken from your side while you work. The model runs on this device; the photo is not uploaded.</p></div></div>
   <div class="grid g2">
     <div class="card stack">
-      ${S.image ? `<div class="canvas-wrap"><canvas id="preview"></canvas></div>` : `<div class="drop"><div style="text-align:center;padding:24px" class="stack"><div style="color:var(--accent);display:flex;justify-content:center">${ic('camera', 36)}</div><p style="color:var(--fg)">Side view, head to knees in frame</p><p class="muted" style="font-size:12px">JPG or PNG. On a phone, Take photo opens the camera.</p></div><div class="frame-guide"><span>Keep head, hips and knees inside</span></div></div>`}
+      ${S.camOn ? `<div class="canvas-wrap" style="position:relative"><video id="cam" autoplay playsinline muted style="width:100%;display:block;border:1px solid var(--rule);background:#000"></video><div id="countdown" aria-live="assertive" style="position:absolute;inset:0;display:grid;place-items:center;font:300 96px/1 var(--display);color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6)"></div><div class="frame-guide"><span>Keep head, hips and knees inside</span></div></div>
+        <div class="row"><label class="field"><span>Timer</span><select id="cam-delay"><option value="3">3 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label><button class="btn blue sm" id="cam-shoot">${ic('camera', 16)} Start timer</button><button class="btn ghost sm" id="cam-close">Close camera</button></div>`
+      : S.image ? `<div class="canvas-wrap"><canvas id="preview"></canvas></div>` : `<div class="drop"><div style="text-align:center;padding:24px" class="stack"><div style="color:var(--accent);display:flex;justify-content:center">${ic('camera', 36)}</div><p style="color:var(--fg)">Side view, head to knees in frame</p><p class="muted" style="font-size:12px">JPG or PNG. On a phone, Take photo opens the camera.</p></div><div class="frame-guide"><span>Keep head, hips and knees inside</span></div></div>`}
       <div class="row">
         <label class="btn ghost sm" for="photo-in" style="cursor:pointer">${ic('upload', 16)} ${S.image ? 'Choose another photo' : 'Choose photo'}</label>
         <input type="file" id="photo-in" accept="image/*" class="sr-only">
         <label class="btn ghost sm" for="photo-cam" style="cursor:pointer">${ic('camera', 16)} Take photo</label>
         <input type="file" id="photo-cam" accept="image/*" capture="environment" class="sr-only">
+        ${!S.camOn && navigator.mediaDevices?.getUserMedia ? `<button class="btn ghost sm" id="cam-open">${ic('camera', 16)} Use webcam with timer</button>` : ''}
       </div>
     </div>
     <div class="card stack">
@@ -258,7 +264,8 @@ BIND.capture = v => {
     try { S.image = await fileToImage(f); S.issues = null; render(); loadModels().catch(() => {}); } catch (x) { S.issues = [x.message]; render(); }
   };
   v.querySelectorAll('#photo-in, #photo-cam').forEach(i => i.onchange = pick);
-  if (S.image) drawPose(v.querySelector('#preview'), S.image, null);
+  if (S.image && !S.camOn) drawPose(v.querySelector('#preview'), S.image, null);
+  bindCamera(v);
   const a = v.querySelector('#analyse');
   if (a) a.onclick = async () => {
     S.analysing = true; S.issues = null; S.status = 'Starting…'; render();
@@ -273,9 +280,51 @@ BIND.capture = v => {
       const row = await S.store.saveAssessment({ kind: 'ai', score: r.score, risk_class: r.riskClass, findings, keypoints, confidence: +r.visibility.toFixed(2), model_version: MODEL_VERSION, rules_version: r.rulesVersion });
       S.lastDetection = { id: row.id, detection: d, side: r.side };
       S.currentId = row.id; S.analysing = false; go('result');
-    } catch (e) { S.issues = [e.message.includes('fetch') ? 'The AI model could not be downloaded. Check your internet connection and try again.' : e.message]; S.analysing = false; render(); }
+    } catch (e) {
+      const m = String(e?.message ?? e);
+      S.issues = [/fetch|network|timed out|load/i.test(m) ? 'The AI model could not be loaded. Check your internet connection and try again.' : m];
+      S.analysing = false; render();
+    }
   };
 };
+
+// Live webcam with a self-timer, so a person can place a camera beside them and sit down.
+// Frames stay in memory on this device, like uploaded photos.
+function stopCamera() { S.camStream?.getTracks().forEach(t => t.stop()); S.camStream = null; S.camOn = false; clearInterval(S.camTimer); }
+function bindCamera(v) {
+  const open = v.querySelector('#cam-open');
+  if (open) open.onclick = async () => {
+    try {
+      S.camStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      S.camOn = true; S.issues = null; render();
+    } catch (e) {
+      S.issues = [e.name === 'NotAllowedError' ? 'Camera access was blocked. Allow the camera in your browser settings, or upload a photo instead.' : 'No camera was found. Upload a photo instead.'];
+      render();
+    }
+  };
+  const video = v.querySelector('#cam');
+  if (!video) return;
+  video.srcObject = S.camStream;
+  v.querySelector('#cam-close').onclick = () => { stopCamera(); render(); };
+  v.querySelector('#cam-shoot').onclick = e => {
+    e.target.disabled = true;
+    let left = +v.querySelector('#cam-delay').value;
+    const cd = v.querySelector('#countdown');
+    cd.textContent = left;
+    S.camTimer = setInterval(() => {
+      left--; cd.textContent = left > 0 ? left : '';
+      if (left > 0) return;
+      clearInterval(S.camTimer);
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
+      const img = new Image();
+      img.onload = () => { S.image = img; stopCamera(); render(); loadModels().catch(() => {}); };
+      img.src = c.toDataURL('image/jpeg', 0.92);
+    }, 1000);
+  };
+}
+window.addEventListener('hashchange', () => { if (S.camOn && location.hash !== '#capture') stopCamera(); });
 
 // Draws the photo with the detected skeleton and workstation boxes. Stays on this device.
 function drawPose(canvas, img, det, side = 'left') {
@@ -322,7 +371,7 @@ async function resultHtml(a, own) {
     : S.reviewOpen ? `<div class="card stack"><h2>Request specialist review</h2><label class="field"><span>What looks wrong? (optional)</span><textarea id="rv-comment" rows="3" maxlength="1000" placeholder="For example: I use a footrest that is not visible in the photo."></textarea></label><div class="row"><button class="btn blue" id="rv-send">Send request</button><button class="btn ghost" id="rv-cancel">Cancel</button></div></div>`
     : `<div class="card row between"><div><h2>Does this look wrong?</h2><p class="muted">Ask an Occupational Health specialist to review the AI result.</p></div><button class="btn ghost" id="rv-open">Request specialist review</button></div>`) : ''}
   <div class="grid g2">
-    <div class="card"><h2>Findings</h2>${(a.findings || []).map(f => `<div class="finding"><span class="sev ${f.severity}"></span><div class="stack" style="gap:2px"><h3>${esc(f.label)}</h3><p class="measure">${esc(f.area || '')}${f.value !== null && f.value !== undefined ? ` · ${f.value}${esc(f.unit || '')}` : ''}</p>${f.message ? `<p>${esc(f.message)}</p>` : ''}</div>${pill(f.severity)}</div>`).join('') || '<p class="muted">No findings.</p>'}</div>
+    <div class="card"><h2>Findings</h2>${(a.findings || []).map(f => `<div class="finding"><span class="sev ${sevOk(f.severity)}"></span><div class="stack" style="gap:2px"><h3>${esc(f.label)}</h3><p class="measure">${esc(f.area || '')}${f.value !== null && f.value !== undefined ? ` · ${esc(f.value)}${esc(f.unit || '')}` : ''}</p>${f.message ? `<p>${esc(f.message)}</p>` : ''}</div>${pill(f.severity)}</div>`).join('') || '<p class="muted">No findings.</p>'}</div>
     <div class="card"><h2>What to change</h2>${[...new Set((a.findings || []).filter(f => f.severity !== 'Low' && f.recommendation).map(f => f.recommendation))].map(t => `<div class="rec"><span class="pill Info" style="min-width:24px">→</span><p style="color:var(--fg)">${esc(t)}</p></div>`).join('') || '<p class="muted" style="padding:12px 0">Nothing to change. Keep it up.</p>'}</div>
   </div>`;
 }
@@ -397,7 +446,7 @@ function showReminder(kind) {
   const root = document.getElementById('notify-root');
   root.innerHTML = `<div class="notify" role="dialog" aria-label="Reminder"><header><span>ErgoSense reminder</span><button type="button" aria-label="Close" id="n-x">×</button></header><div class="body"><h3>${t}</h3><p>${body}</p><div class="row"><button class="btn blue sm" data-n="Done. Nice work.">Done</button><button class="btn ghost sm" data-n="Snoozed for 10 minutes." data-snooze="${kind}">Snooze 10 min</button><button class="link" data-n="Skipped.">Skip</button></div></div></div>`;
   root.querySelector('#n-x').onclick = () => root.innerHTML = '';
-  root.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { root.innerHTML = ''; toast(b.dataset.n); if (b.dataset.snooze) setTimeout(() => showReminder(kind), 600000); });
+  root.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { root.innerHTML = ''; toast(b.dataset.n); if (b.dataset.snooze) S.timers.push(setTimeout(() => showReminder(kind), 600000)); });
 }
 
 VIEWS.mydata = async () => {
@@ -447,7 +496,7 @@ VIEWS.dashboard = async () => {
     <label class="field"><span>Department</span><select id="f-dept"><option value="">All</option>${depts.map(e => `<option ${S.filters.department === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>
     <label class="field"><span>Period</span><select id="f-days"><option value="">All time</option>${[[30, 'Last 30 days'], [90, 'Last 90 days']].map(([n, l]) => `<option value="${n}" ${+S.filters.days === n ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
   </div>
-  ${d.suppressed ? `<div class="notice">${ic('info', 20)}<p>${d.assessed ? `Only ${d.assessed} assessed employee${d.assessed > 1 ? 's' : ''} in this selection` : 'No assessments in this selection'}, fewer than ${d.min_group}. Results are hidden to protect privacy.</p></div>` : `
+  ${d.suppressed ? `<div class="notice">${ic('info', 20)}<p>Results for this selection are hidden to protect privacy. Either it has fewer than ${esc(d.min_group)} assessed people, or it differs from a wider view by fewer than ${esc(d.min_group)}, which could reveal someone's result. Widen the filters.</p></div>` : `
   <div class="grid g4">
     <div class="card kpi"><div class="label">Assessed</div><div class="v num">${d.assessed}</div><div class="d">${d.employees ? Math.round(d.assessed / d.employees * 100) : 0}% of ${d.employees} employees</div></div>
     <div class="card kpi"><div class="label">High risk</div><div class="v num" style="color:var(--high)">${d.high}</div><div class="d">${Math.round(d.high / d.assessed * 100)}% of assessed</div></div>
@@ -535,13 +584,20 @@ document.addEventListener('click', e => {
   const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); go(g.dataset.go); return; }
   const o = e.target.closest('[data-open]'); if (o) { S.currentId = o.dataset.open; go('result'); }
 });
-document.getElementById('sign-out').onclick = async () => { stopReminders(); await S.store.signOut(); S.me = null; S.image = null; S.lastDetection = null; history.replaceState(null, '', location.pathname); render(); };
+// Clears everything the previous person left in memory on this device.
+function resetSession() {
+  stopReminders(); stopCamera();
+  Object.assign(S, { me: null, image: null, lastDetection: null, report: null, answers: {}, step: 0, checkDone: false, checkError: null,
+    filters: {}, currentId: null, rem: null, delStep: null, reviewOpen: false, issues: null, analysing: false });
+  document.getElementById('notify-root').innerHTML = '';
+}
+document.getElementById('sign-out').onclick = async () => { await S.store.signOut(); resetSession(); history.replaceState(null, '', location.pathname); render(); };
 
 (async () => {
   try {
     S.store = await createStore();
     document.getElementById('mode-chip').textContent = S.store.mode === 'local' ? 'Local demo mode · data stays in this browser' : 'Connected · Supabase';
-    S.store.onAuth(async () => { S.me = await S.store.session(); render(); });
+    S.store.onAuth(async evt => { if (evt === 'SIGNED_OUT') resetSession(); S.me = await S.store.session(); render(); });
     S.me = await S.store.session();
   } catch (e) {
     document.getElementById('view').innerHTML = `<p class="err">Could not start: ${esc(e.message)}</p>`; return;

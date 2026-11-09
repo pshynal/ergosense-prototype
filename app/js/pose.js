@@ -29,6 +29,8 @@ export function loadModels(onStatus = () => {}) {
     ]);
     return { pose, objects };
   })();
+  // Give up after 60 s so the screen never stays on "analysing" if the model can't download.
+  ready = Promise.race([ready, new Promise((_, reject) => setTimeout(() => reject(new Error('Loading the AI model timed out')), 60000))]);
   ready.catch(() => { ready = null; });
   return ready;
 }
