@@ -3,7 +3,7 @@
 //  - LocalStore: browser-only demo with sample colleagues, same rules, no account needed
 import { CONFIG } from './config.js';
 
-const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm';
 
 export async function createStore() {
   if (CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) {
